@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+/*
+ * `@theme inline` makes the utilities reference these custom properties
+ * directly rather than baking in a hex value, so redefining the palette under
+ * [data-theme] swaps the whole site without touching a single class name.
+ */
+@theme inline {
+  --color-base-950: var(--c-base-950);
+  --color-base-900: var(--c-base-900);
+  --color-base-850: var(--c-base-850);
+  --color-base-800: var(--c-base-800);
+  --color-base-700: var(--c-base-700);
+  --color-base-600: var(--c-base-600);
+
+  --color-fg: var(--c-fg);
+  --color-fg-muted: var(--c-fg-muted);
+  --color-fg-dim: var(--c-fg-dim);
+
+  --color-brand-300: var(--c-brand-300);
+  --color-brand-400: var(--c-brand-400);
+  --color-brand-500: var(--c-brand-500);
+  --color-brand-600: var(--c-brand-600);
+
+  --color-azure-300: var(--c-azure-300);
+  --color-azure-400: var(--c-azure-400);
+  --color-azure-500: var(--c-azure-500);
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Consolas,
+    "Liberation Mono", Menlo, monospace;
+}
+
+/* Dark is the site's default look. */
+:root {
+  color-scheme: dark;
+
+  --c-base-950: #070a0f;
+  --c-base-900: #0b0f16;
+  --c-base-850: #111823;
+  --c-base-800: #161f2c;
+  --c-base-700: #1f2a3a;
+  --c-base-600: #2c3a4d;
+
+  --c-fg: #e6edf3;
+  --c-fg-muted: #97a6b8;
+  --c-fg-dim: #6a7a8d;
+
+  --c-brand-300: #86efac;
+  --c-brand-400: #4ade80;
+  --c-brand-500: #22c55e;
+  --c-brand-600: #16a34a;
+
+  --c-azure-300: #7dd3fc;
+  --c-azure-400: #38bdf8;
+  --c-azure-500: #0ea5e9;
+}
+
+/*
+ * Light theme. Greens and blues are darkened so they keep their contrast
+ * ratio against a pale background — the dark-mode values are unreadable there.
+ */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --c-base-950: #f6f8fb;
+  --c-base-900: #ffffff;
+  --c-base-850: #eef2f7;
+  --c-base-800: #dfe6ee;
+  --c-base-700: #c6d1de;
+  --c-base-600: #97a6b8;
+
+  --c-fg: #0d1520;
+  --c-fg-muted: #4a5a6d;
+  --c-fg-dim: #6b7b8d;
+
+  /*
+   * Darker than the dark-theme greens on purpose. brand-500 is a button
+   * background carrying near-white text, and brand-400 is small link text on
+   * white — the lighter values fall under 4.5:1 in both roles.
+   */
+  --c-brand-300: #15803d;
+  --c-brand-400: #166534;
+  --c-brand-500: #15803d;
+  --c-brand-600: #14532d;
+
+  --c-azure-300: #075985;
+  --c-azure-400: #0369a1;
+  --c-azure-500: #075985;
+}
+
+body {
+  background-color: var(--color-base-950);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Offset anchor jumps so the sticky header does not cover section headings. */
+[id] {
+  scroll-margin-top: 5.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
