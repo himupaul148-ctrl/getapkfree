@@ -1,41 +1,120 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import Prose from "@/components/Prose";
+import ScanBadge from "@/components/ScanBadge";
 
 export const metadata: Metadata = {
   title: "How to Install",
   description:
-    "Step-by-step guide to installing an APK safely on Android, including how to verify a download before you open it.",
+    "Why these apps are not on Google Play, how to enable installs from unknown sources, how to install an APK, and what the safety badges mean.",
 };
 
 export default function HowToInstallPage() {
   return (
     <Prose
       title="How to install an APK"
-      intro="Sideloading is safe when you know where the file came from and you check it before opening it. Here is the whole process."
+      intro="Sideloading is safe when you know where the file came from and you check it before opening it. Here is the whole process, and what our badges are telling you."
     >
+      <h2>Why these apps aren&rsquo;t on Google Play</h2>
+      <p>
+        Almost everything here is <strong>free and open-source software</strong>,
+        most of it mirrored from{" "}
+        <a href="https://f-droid.org" rel="noreferrer noopener" target="_blank">
+          F-Droid
+        </a>
+        , a long-running repository that builds apps from published source code.
+      </p>
+      <p>Open-source apps skip the Play Store for ordinary reasons:</p>
+      <ul>
+        <li>
+          A Play Store listing costs a one-off developer fee and ongoing
+          policy compliance work that unpaid volunteers often will not take on.
+        </li>
+        <li>
+          Play requires apps to ship Google&rsquo;s own libraries for some
+          features. Projects that avoid tracking deliberately refuse them.
+        </li>
+        <li>
+          Some apps do things Play&rsquo;s policies restrict — ad-blocking,
+          per-app firewalls, downloading media, automation across other apps.
+        </li>
+      </ul>
+      <p>
+        None of that makes an app unsafe. It does mean nobody is checking it on
+        your behalf, which is what the scanning below is for.
+      </p>
+
+      <h2>What the safety badges mean</h2>
+      <p>
+        Every build carries the result of a malware scan, checked against
+        VirusTotal&rsquo;s engines by file hash:
+      </p>
+
+      <div className="flex flex-col gap-4 rounded-2xl border border-base-800 bg-base-900 p-5">
+        <div className="flex flex-wrap items-center gap-3">
+          <ScanBadge status="clean" scannedAt={null} />
+          <span className="text-sm text-fg-muted">
+            No engine flagged this build. The date shown is when it was checked.
+            <strong className="text-fg"> Only these appear on the site.</strong>
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <ScanBadge status="pending" scannedAt={null} />
+          <span className="text-sm text-fg-muted">
+            No verdict yet — usually a build too new to have been analysed.
+            Held back until it clears.
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <ScanBadge status="flagged" scannedAt={null} />
+          <span className="text-sm text-fg-muted">
+            At least one engine reported something. Never published; kept only
+            for review.
+          </span>
+        </div>
+      </div>
+
+      <p>
+        A badge is evidence, not a guarantee. Scanners produce false positives —
+        apps that need broad permissions, like firewalls or automation tools,
+        get flagged more often than their behaviour warrants. Read the
+        permissions list on the app page too.
+      </p>
+
       <h2>1. Allow installs from your browser or file manager</h2>
       <p>
         Android blocks installs from outside the Play Store by default. On
         Android 8 and newer the permission is granted per app, not globally:
-        open <strong>Settings → Apps → Special app access → Install unknown
-        apps</strong>, pick the app you will open the APK from (usually your
-        browser or file manager), and enable it.
       </p>
+      <ol>
+        <li>
+          Open <strong>Settings → Apps → Special app access → Install unknown
+          apps</strong>.
+        </li>
+        <li>
+          Pick the app you will open the APK from — usually your browser
+          (Chrome, Firefox) or your file manager.
+        </li>
+        <li>
+          Turn on <strong>Allow from this source</strong>.
+        </li>
+      </ol>
       <p>
-        Turn the permission back off when you are done. It only needs to be on
-        for the moment you tap the file.
+        Turn it back off when you are done. It only needs to be on for the
+        moment you tap the file. On Android 7 and older the setting is a single
+        global toggle at <strong>Settings → Security → Unknown sources</strong>.
       </p>
 
       <h2>2. Check the build before you install</h2>
-      <p>
-        Every build listed here carries a scan date and a version code. Before
-        installing, confirm two things on the app page:
-      </p>
       <ul>
-        <li>The build shows a green <strong>Scanned</strong> badge.</li>
+        <li>Confirm the build shows a green <strong>Scanned</strong> badge.</li>
         <li>
-          The <strong>package name</strong> matches the app you expect. A
-          mismatched package name is the most common sign of a repackaged APK.
+          Check the <strong>package name</strong> matches the app you expect —
+          a mismatch is the commonest sign of a repackaged APK.
+        </li>
+        <li>
+          Skim the permissions. An offline calculator asking for contacts and
+          the microphone deserves suspicion.
         </li>
       </ul>
 
@@ -47,11 +126,15 @@ export default function HowToInstallPage() {
         device cannot install.
       </p>
 
-      <h2>4. Install</h2>
+      <h2>4. Install it</h2>
       <ol>
-        <li>Download the APK.</li>
-        <li>Open it from your notification shade or file manager.</li>
-        <li>Review the permissions Android lists, then confirm.</li>
+        <li>Tap <strong>Download</strong> on the app page.</li>
+        <li>Open the file from your notification shade or Downloads folder.</li>
+        <li>Android lists the permissions it wants — read them, then confirm.</li>
+        <li>
+          Updates are manual: come back and download the newer build when one
+          appears. Installing over the top keeps your data.
+        </li>
       </ol>
 
       <h2>If an install fails</h2>
@@ -71,11 +154,9 @@ export default function HowToInstallPage() {
         </li>
       </ul>
 
-      <h2>A note on this demo</h2>
       <p>
-        This deployment is seeded with fictional sample apps and its download
-        links are non-functional placeholders, so there is nothing here to
-        actually install yet.
+        Browse the <Link href="/">catalogue</Link> when you are ready, or read{" "}
+        <Link href="/about">how builds get listed</Link>.
       </p>
     </Prose>
   );

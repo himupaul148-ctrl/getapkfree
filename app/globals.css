@@ -26,6 +26,14 @@
   --color-azure-400: var(--c-azure-400);
   --color-azure-500: var(--c-azure-500);
 
+  /* Scan-status tones. Tokenised like the rest so they follow the theme —
+     Tailwind's fixed amber-300/rose-300 are pale by design and vanish on a
+     light background. */
+  --color-warn-300: var(--c-warn-300);
+  --color-warn-500: var(--c-warn-500);
+  --color-danger-300: var(--c-danger-300);
+  --color-danger-500: var(--c-danger-500);
+
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Consolas,
@@ -55,6 +63,11 @@
   --c-azure-300: #7dd3fc;
   --c-azure-400: #38bdf8;
   --c-azure-500: #0ea5e9;
+
+  --c-warn-300: #fcd34d;
+  --c-warn-500: #f59e0b;
+  --c-danger-300: #fda4af;
+  --c-danger-500: #f43f5e;
 }
 
 /*
@@ -80,7 +93,9 @@
    * background carrying near-white text, and brand-400 is small link text on
    * white — the lighter values fall under 4.5:1 in both roles.
    */
-  --c-brand-300: #15803d;
+  /* brand-300 is badge/accent text sitting on a 10% brand tint, so it needs to
+     be the darkest of the set — at #15803d it measured 4.10:1, under AA. */
+  --c-brand-300: #14532d;
   --c-brand-400: #166534;
   --c-brand-500: #15803d;
   --c-brand-600: #14532d;
@@ -88,6 +103,11 @@
   --c-azure-300: #075985;
   --c-azure-400: #0369a1;
   --c-azure-500: #075985;
+
+  --c-warn-300: #92400e;
+  --c-warn-500: #b45309;
+  --c-danger-300: #be123c;
+  --c-danger-500: #e11d48;
 }
 
 body {

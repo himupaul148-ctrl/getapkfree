@@ -77,7 +77,7 @@ export default function SettingsPanel({ profile }: { profile: Profile }) {
         <form action="/auth/signout" method="post" className="mt-4">
           <button
             type="submit"
-            className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-5 py-2.5 text-sm font-semibold text-rose-300 transition-colors hover:bg-rose-500/20"
+            className="rounded-xl border border-danger-500/40 bg-danger-500/10 px-5 py-2.5 text-sm font-semibold text-danger-300 transition-colors hover:bg-danger-500/20"
           >
             Log out
           </button>

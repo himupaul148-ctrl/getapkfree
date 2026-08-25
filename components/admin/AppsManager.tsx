@@ -286,7 +286,7 @@ function Actions({
       <button
         type="button"
         onClick={onDelete}
-        className="rounded-lg border border-rose-500/40 px-3 py-1.5 text-xs text-rose-300 transition-colors hover:bg-rose-500/10"
+        className="rounded-lg border border-danger-500/40 px-3 py-1.5 text-xs text-danger-300 transition-colors hover:bg-danger-500/10"
       >
         Delete
       </button>

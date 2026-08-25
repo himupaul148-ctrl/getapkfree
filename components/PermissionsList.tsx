@@ -36,7 +36,7 @@ export default function PermissionsList({
               <li key={permission.raw} className="flex gap-3">
                 <span
                   className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${
-                    permission.sensitive ? "bg-amber-400" : "bg-base-600"
+                    permission.sensitive ? "bg-warn-500" : "bg-base-600"
                   }`}
                   aria-hidden="true"
                 />
@@ -44,7 +44,7 @@ export default function PermissionsList({
                   <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-fg">
                     {permission.label}
                     {permission.sensitive && (
-                      <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[11px] font-normal text-amber-300">
+                      <span className="rounded-full border border-warn-500/30 bg-warn-500/10 px-2 py-0.5 text-[11px] font-normal text-warn-300">
                         Review
                       </span>
                     )}

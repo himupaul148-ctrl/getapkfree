@@ -82,7 +82,7 @@ export default function UserMenu({
             <button
               type="submit"
               role="menuitem"
-              className="w-full px-4 py-2.5 text-left text-sm text-rose-300 transition-colors hover:bg-base-850"
+              className="w-full px-4 py-2.5 text-left text-sm text-danger-300 transition-colors hover:bg-base-850"
             >
               Log out
             </button>

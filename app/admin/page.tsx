@@ -72,7 +72,7 @@ export default async function AdminOverviewPage() {
                   className={`rounded-full border px-2 py-0.5 text-[11px] ${
                     row.published
                       ? "border-brand-500/30 bg-brand-500/10 text-brand-300"
-                      : "border-amber-400/30 bg-amber-400/10 text-amber-300"
+                      : "border-warn-500/30 bg-warn-500/10 text-warn-300"
                   }`}
                 >
                   {row.published ? "Published" : "Draft"}

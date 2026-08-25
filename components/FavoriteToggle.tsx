@@ -91,8 +91,8 @@ export default function FavoriteToggle({
         aria-pressed={favorite}
         className={`group inline-flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2.5 text-sm transition-colors ${
           favorite
-            ? "border-rose-500/50 bg-rose-500/10 text-rose-300"
-            : "border-base-700 text-fg-muted hover:border-rose-500/50 hover:text-rose-300"
+            ? "border-danger-500/50 bg-danger-500/10 text-danger-300"
+            : "border-base-700 text-fg-muted hover:border-danger-500/50 hover:text-danger-300"
         }`}
       >
         <Heart filled={favorite} />
@@ -112,8 +112,8 @@ export default function FavoriteToggle({
       aria-pressed={favorite}
       className={`absolute top-3 right-3 z-10 rounded-full border p-2 transition-colors ${
         favorite
-          ? "border-rose-500/50 bg-rose-500/10 text-rose-400"
-          : "border-base-700 bg-base-900/80 text-fg-dim hover:border-rose-500/50 hover:text-rose-400"
+          ? "border-danger-500/50 bg-danger-500/10 text-danger-300"
+          : "border-base-700 bg-base-900/80 text-fg-dim hover:border-danger-500/50 hover:text-danger-300"
       }`}
     >
       <Heart filled={favorite} />
