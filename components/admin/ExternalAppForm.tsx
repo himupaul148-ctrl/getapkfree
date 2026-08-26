@@ -7,6 +7,10 @@ import { createClient } from "@/lib/supabase/client";
 import { CATEGORIES } from "@/lib/types";
 import { hostOf, providerFromUrl } from "@/lib/sources";
 import type { FetchedMetadata } from "@/lib/metadata/fetchers";
+import ImageField from "@/components/admin/ImageField";
+import { changedFields, type OverridableField } from "@/lib/metadata/provenance";
+
+const MAX_SCREENSHOTS = 4;
 
 function slugify(value: string): string {
   return value
@@ -46,6 +50,10 @@ export default function ExternalAppForm() {
   const [iconUrl, setIconUrl] = useState("");
   const [rating, setRating] = useState("");
   const [ratingCount, setRatingCount] = useState("");
+  const [shots, setShots] = useState<string[]>(Array(MAX_SCREENSHOTS).fill(""));
+  // What the fetcher returned, kept so the save can work out which fields the
+  // admin actually changed rather than marking everything manual.
+  const [fetched, setFetched] = useState<FetchedMetadata | null>(null);
 
   const provider = providerFromUrl(url || null);
 
@@ -74,6 +82,14 @@ export default function ExternalAppForm() {
       if (m.rating !== null) setRating(String(m.rating.toFixed(2)));
       if (m.ratingCount !== null) setRatingCount(String(m.ratingCount));
 
+      if (m.screenshots?.length) {
+        setShots([
+          ...m.screenshots.slice(0, MAX_SCREENSHOTS),
+          ...Array(Math.max(0, MAX_SCREENSHOTS - m.screenshots.length)).fill(""),
+        ]);
+      }
+
+      setFetched(m);
       setUnavailable(m.unavailable);
       setFetchedFrom(m.source);
     } catch (caught) {
@@ -101,6 +117,36 @@ export default function ExternalAppForm() {
       packageName.trim() ||
       `external.${slugify(hostOf(url) ?? "site").replace(/-/g, ".")}.${slugify(name)}`;
 
+    const cleanShots = shots.map((s) => s.trim()).filter(Boolean);
+
+    // Only the fields that differ from what the fetcher returned count as
+    // manual. Anything the source never provided and the admin typed in also
+    // lands here, which is exactly the case Part 2 is about.
+    const manual: OverridableField[] = changedFields(
+      {
+        name: fetched?.name ?? null,
+        description: fetched?.description ?? null,
+        icon_url: fetched?.iconUrl ?? null,
+        screenshots: fetched?.screenshots ?? [],
+        developer_name: fetched?.developer ?? null,
+        category: fetched?.category ?? null,
+        rating: fetched?.rating ?? null,
+        rating_count: fetched?.ratingCount ?? null,
+        version_name: fetched?.version ?? null,
+      },
+      {
+        name: name.trim(),
+        description: description.trim(),
+        icon_url: iconUrl.trim(),
+        screenshots: cleanShots,
+        developer_name: developer.trim(),
+        category,
+        rating: rating.trim(),
+        rating_count: ratingCount.trim(),
+        version_name: version.trim(),
+      },
+    );
+
     setStage("saving");
     const supabase = createClient();
 
@@ -127,6 +173,8 @@ export default function ExternalAppForm() {
           icon_url: iconUrl.trim() || null,
           rating: rating ? Number(rating) : null,
           rating_count: ratingCount ? Number(ratingCount) : 0,
+          screenshots: cleanShots,
+          manual_fields: manual,
           source_type: "external",
           external_url: url.trim(),
           hosted_locally: false,
@@ -175,6 +223,8 @@ export default function ExternalAppForm() {
       setIconUrl("");
       setRating("");
       setRatingCount("");
+      setShots(Array(MAX_SCREENSHOTS).fill(""));
+      setFetched(null);
       router.refresh();
     } catch (caught) {
       const message =
@@ -295,13 +345,44 @@ export default function ExternalAppForm() {
           onChange={setVersion}
           hint='Shown as "Latest" if empty.'
         />
-        <Field label="Icon URL" value={iconUrl} onChange={setIconUrl} />
+        <div className="sm:col-span-2">
+          <ImageField
+            label="Icon"
+            value={iconUrl}
+            onChange={setIconUrl}
+            slug={slugify(name) || "app"}
+            kind="icon"
+            hint="Auto-fetched where the source has one. Upload or paste to override."
+          />
+        </div>
         <Field label="Rating" value={rating} onChange={setRating} />
         <Field
           label="Rating count"
           value={ratingCount}
           onChange={setRatingCount}
         />
+
+        <div className="sm:col-span-2">
+          <p className="text-sm font-medium">Screenshots</p>
+          <p className="mt-1 text-xs text-fg-dim">
+            Up to {MAX_SCREENSHOTS}. Play does not expose these, so they are
+            usually yours to add.
+          </p>
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            {shots.map((shot, index) => (
+              <ImageField
+                key={index}
+                label={`Screenshot ${index + 1}`}
+                value={shot}
+                onChange={(v) =>
+                  setShots((cur) => cur.map((s, i) => (i === index ? v : s)))
+                }
+                slug={slugify(name) || "app"}
+                kind="screenshot"
+              />
+            ))}
+          </div>
+        </div>
 
         <div className="sm:col-span-2">
           <label className="block text-sm font-medium">Description</label>

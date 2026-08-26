@@ -16,8 +16,25 @@ type Row = {
   download_count: number | null;
   source_type: SourceType;
   external_url: string | null;
-  versions: { id: string; published: boolean }[];
+  icon_url: string | null;
+  screenshots: string[] | null;
+  rating: number | null;
+  rating_count: number | null;
+  manual_fields: string[] | null;
+  versions: {
+    id: string;
+    published: boolean;
+    version_name: string;
+    version_code: number;
+  }[];
 };
+
+/** Highest version_code wins, matching how the public pages pick a build. */
+function newest(row: Row) {
+  return [...(row.versions ?? [])].sort(
+    (a, b) => b.version_code - a.version_code,
+  )[0];
+}
 
 export default async function AdminAppsPage() {
   const supabase = await createClient();
@@ -27,7 +44,7 @@ export default async function AdminAppsPage() {
   const { data, error } = await supabase
     .from("apps")
     .select(
-      "id, name, slug, package_name, category, description, developer_name, created_at, download_count, source_type, external_url, versions(id, published)",
+      "id, name, slug, package_name, category, description, developer_name, created_at, download_count, source_type, external_url, icon_url, screenshots, rating, rating_count, manual_fields, versions(id, published, version_name, version_code)",
     )
     .order("created_at", { ascending: false })
     .returns<Row[]>();
@@ -46,6 +63,14 @@ export default async function AdminAppsPage() {
     publishedCount: (row.versions ?? []).filter((v) => v.published).length,
     sourceType: row.source_type ?? "fdroid",
     externalUrl: row.external_url ?? null,
+    iconUrl: row.icon_url ?? null,
+    screenshots: row.screenshots ?? [],
+    rating: row.rating ?? null,
+    ratingCount: row.rating_count ?? 0,
+    manualFields: row.manual_fields ?? [],
+    // Newest build carries the version number the edit form shows.
+    latestVersionId: newest(row)?.id ?? null,
+    latestVersionName: newest(row)?.version_name ?? null,
   }));
 
   return (

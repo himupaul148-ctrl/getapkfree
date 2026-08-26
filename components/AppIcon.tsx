@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { isOptimisable } from "@/lib/images";
 import { useState } from "react";
 
 function initialsOf(name: string): string {
@@ -54,6 +55,9 @@ export default function AppIcon({
       height={size}
       loading={priority ? undefined : "lazy"}
       priority={priority}
+      // An admin can paste an icon from any host; the optimiser only accepts
+      // the allowlist, so anything else renders straight through.
+      unoptimized={!isOptimisable(src)}
       onError={() => setFailed(true)}
       className="shrink-0 rounded-xl bg-base-800 object-cover"
     />

@@ -1,14 +1,14 @@
 import type { NextConfig } from "next";
+import { OPTIMISED_IMAGE_HOSTS } from "./lib/images";
 
 const nextConfig: NextConfig = {
   images: {
-    // App icons are remote: F-Droid for imported apps, placehold.co for the
-    // fictional sample rows. next/image will not touch a host that is not
-    // listed here.
-    remotePatterns: [
-      { protocol: "https", hostname: "f-droid.org", pathname: "/repo/**" },
-      { protocol: "https", hostname: "placehold.co", pathname: "/**" },
-    ],
+    // One source of truth with lib/images.ts, so a host the optimiser will
+    // accept and a host the components think it will accept cannot diverge.
+    remotePatterns: OPTIMISED_IMAGE_HOSTS.map((hostname) => ({
+      protocol: "https" as const,
+      hostname,
+    })),
     // Icons render at 44–104px; screenshots at ~540px wide. Trimming the
     // default ladder avoids generating sizes nothing asks for.
     imageSizes: [44, 56, 88, 104, 128, 256],

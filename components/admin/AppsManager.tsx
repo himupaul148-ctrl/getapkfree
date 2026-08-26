@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatCount, formatDate } from "@/lib/format";
-import { CATEGORIES } from "@/lib/types";
 import SourceBadge from "@/components/SourceBadge";
+import EditMetadataModal from "@/components/admin/EditMetadataModal";
 import type { SourceType } from "@/lib/sources";
 
 export type ManagedApp = {
@@ -23,6 +23,13 @@ export type ManagedApp = {
   publishedCount: number;
   sourceType: SourceType;
   externalUrl: string | null;
+  iconUrl: string | null;
+  screenshots: string[];
+  rating: number | null;
+  ratingCount: number;
+  manualFields: string[];
+  latestVersionId: string | null;
+  latestVersionName: string | null;
 };
 
 export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
@@ -222,7 +229,7 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
       )}
 
       {editing && (
-        <EditModal
+        <EditMetadataModal
           app={editing}
           onClose={() => setEditing(null)}
           onSaved={() => {
@@ -290,7 +297,7 @@ function Actions({
         onClick={onEdit}
         className="rounded-lg border border-base-700 px-3 py-1.5 text-xs text-fg-muted transition-colors hover:text-fg"
       >
-        Edit
+        Edit metadata
       </button>
       <button
         type="button"
@@ -308,120 +315,6 @@ function Actions({
         Delete
       </button>
     </div>
-  );
-}
-
-function EditModal({
-  app,
-  onClose,
-  onSaved,
-}: {
-  app: ManagedApp;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [category, setCategory] = useState(app.category ?? CATEGORIES[0]);
-  const [description, setDescription] = useState(app.description ?? "");
-  const [developer, setDeveloper] = useState(app.developer ?? "");
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function save(event: React.FormEvent) {
-    event.preventDefault();
-    setPending(true);
-    setError(null);
-    const supabase = createClient();
-    const { error: updateError } = await supabase
-      .from("apps")
-      .update({
-        category,
-        description: description.trim() || null,
-        developer_name: developer.trim() || null,
-      })
-      .eq("id", app.id);
-    setPending(false);
-    if (updateError) {
-      setError(updateError.message);
-      return;
-    }
-    onSaved();
-  }
-
-  return (
-    <Modal title={`Edit ${app.name}`} onClose={onClose}>
-      <form onSubmit={save} className="space-y-4">
-        {error && <p className="text-sm text-red-400">{error}</p>}
-
-        <div>
-          <label
-            htmlFor="edit-category"
-            className="mb-1.5 block text-xs font-medium text-fg-dim"
-          >
-            Category
-          </label>
-          <select
-            id="edit-category"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="w-full rounded-xl border border-base-700 bg-base-850 px-3.5 py-2.5 text-sm text-fg focus:border-brand-500 focus:outline-none"
-          >
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c} className="bg-base-850">
-                {c}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label
-            htmlFor="edit-developer"
-            className="mb-1.5 block text-xs font-medium text-fg-dim"
-          >
-            Developer name
-          </label>
-          <input
-            id="edit-developer"
-            value={developer}
-            onChange={(e) => setDeveloper(e.target.value)}
-            className="w-full rounded-xl border border-base-700 bg-base-850 px-3.5 py-2.5 text-sm text-fg focus:border-brand-500 focus:outline-none"
-          />
-        </div>
-
-        <div>
-          <label
-            htmlFor="edit-description"
-            className="mb-1.5 block text-xs font-medium text-fg-dim"
-          >
-            Description
-          </label>
-          <textarea
-            id="edit-description"
-            rows={4}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="w-full rounded-xl border border-base-700 bg-base-850 px-3.5 py-2.5 text-sm text-fg focus:border-brand-500 focus:outline-none"
-          />
-        </div>
-
-        <div className="flex gap-3 pt-1">
-          <button
-            type="submit"
-            disabled={pending}
-            className="rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-semibold text-base-950 hover:bg-brand-400 disabled:opacity-60"
-          >
-            {pending ? "Saving…" : "Save changes"}
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl border border-base-700 px-4 py-2.5 text-sm text-fg-muted hover:text-fg"
-          >
-            Cancel
-          </button>
-        </div>
-      </form>
-    </Modal>
   );
 }
 
