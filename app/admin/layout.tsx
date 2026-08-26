@@ -13,6 +13,7 @@ export const metadata: Metadata = {
 const TABS = [
   { href: "/admin", label: "Overview" },
   { href: "/admin/upload", label: "Upload" },
+  { href: "/admin/add-external-app", label: "Add external" },
   { href: "/admin/apps", label: "Apps" },
 ];
 

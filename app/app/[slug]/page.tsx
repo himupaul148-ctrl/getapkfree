@@ -6,9 +6,11 @@ import AppJsonLd from "@/components/AppJsonLd";
 import AppIcon from "@/components/AppIcon";
 import FavoriteToggle from "@/components/FavoriteToggle";
 import DownloadButton from "@/components/DownloadButton";
+import { downloadSourceLabel, hostOf } from "@/lib/sources";
 import PermissionsList from "@/components/PermissionsList";
 import RatingStars from "@/components/RatingStars";
 import ScanBadge from "@/components/ScanBadge";
+import SourceBadge from "@/components/SourceBadge";
 import ScreenshotGallery from "@/components/ScreenshotGallery";
 import VersionHistory from "@/components/VersionHistory";
 import {
@@ -48,7 +50,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const versions = await getPublishedVersions(app.id);
   const latest = versions[0];
-  const version = latest ? ` ${latest.version_name}` : "";
+  // "Latest" is the placeholder an external listing gets when its source does
+  // not publish a version number — "Signal APK Latest" reads like a typo.
+  const version =
+    latest && latest.version_name !== "Latest" ? ` ${latest.version_name}` : "";
 
   // Front-load the app name and "APK": that is what people actually type.
   const title = `${app.name} APK${version} — Free Download`;
@@ -130,6 +135,10 @@ export default async function AppDetailPage({ params }: Props) {
                 {app.category}
               </Link>
             )}
+            <SourceBadge
+              sourceType={app.source_type}
+              externalUrl={app.external_url}
+            />
             <RatingStars rating={app.rating} count={app.rating_count} />
             <span className="text-sm text-azure-400">
               {formatCount(app.download_count ?? 0)} downloads
@@ -160,7 +169,11 @@ export default async function AppDetailPage({ params }: Props) {
           <dt className="text-xs text-fg-dim">Safety</dt>
           <dd>
             <ScanBadge
-              status={latest?.scan_status ?? null}
+              status={
+                app.source_type === "external"
+                  ? "external"
+                  : (latest?.scan_status ?? null)
+              }
               scannedAt={latest?.scanned_at ?? null}
             />
           </dd>
@@ -175,16 +188,43 @@ export default async function AppDetailPage({ params }: Props) {
           <DownloadButton
             versionId={latest.id}
             versionName={latest.version_name}
-            fileUrl={latest.file_url}
-          />
+            fileUrl={
+              app.source_type === "external" ? app.external_url : latest.file_url
+            }
+            external={app.source_type === "external"}
+          >
+            {app.source_type === "external"
+              ? downloadSourceLabel(app.source_type, app.external_url)
+              : undefined}
+          </DownloadButton>
           <span className="text-sm text-fg-dim sm:w-40">
-            {formatBytes(latest.file_size)} · APK
+            {app.source_type === "external" ? (
+              // Naming the destination host is the honest version of an
+              // outbound link: people should know they are leaving before
+              // they click, not after.
+              <>Opens {hostOf(app.external_url) ?? "the official page"}</>
+            ) : (
+              <>
+                {formatBytes(latest.file_size)} · APK
+              </>
+            )}
           </span>
         </div>
       ) : (
         <p className="mt-6 rounded-2xl border border-base-800 bg-base-900 p-5 text-fg-muted">
           No builds have cleared scanning for this app yet, so there is nothing
           to download.
+        </p>
+      )}
+
+      {app.source_type === "external" && (
+        <p className="mt-3 rounded-xl border border-azure-500/25 bg-azure-500/5 p-4 text-sm leading-relaxed text-fg-muted">
+          GetApkFree does not host this app. The button above takes you to{" "}
+          <span className="font-medium text-azure-300">
+            {hostOf(app.external_url) ?? "the publisher"}
+          </span>
+          , where the developer publishes it — so it is not one of the builds we
+          scan ourselves.
         </p>
       )}
 

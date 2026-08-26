@@ -6,6 +6,8 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatCount, formatDate } from "@/lib/format";
 import { CATEGORIES } from "@/lib/types";
+import SourceBadge from "@/components/SourceBadge";
+import type { SourceType } from "@/lib/sources";
 
 export type ManagedApp = {
   id: string;
@@ -19,6 +21,8 @@ export type ManagedApp = {
   downloadCount: number;
   versionCount: number;
   publishedCount: number;
+  sourceType: SourceType;
+  externalUrl: string | null;
 };
 
 export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
@@ -115,6 +119,7 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
               <thead className="bg-base-850 text-xs text-fg-dim">
                 <tr>
                   <Th>App</Th>
+                  <Th>Source</Th>
                   <Th>Category</Th>
                   <Th>Versions</Th>
                   <Th>Downloads</Th>
@@ -135,6 +140,12 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
                       <p className="font-mono text-xs text-fg-dim">
                         {app.packageName}
                       </p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <SourceBadge
+                        sourceType={app.sourceType}
+                        externalUrl={app.externalUrl}
+                      />
                     </td>
                     <td className="px-4 py-3 text-fg-muted">{app.category}</td>
                     <td className="px-4 py-3 text-fg-muted">
@@ -181,6 +192,12 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
                   {app.packageName}
                 </p>
                 <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-fg-muted">
+                  <div className="mb-1">
+                    <SourceBadge
+                      sourceType={app.sourceType}
+                      externalUrl={app.externalUrl}
+                    />
+                  </div>
                   <div>{app.category}</div>
                   <div>
                     {app.versionCount} version{app.versionCount === 1 ? "" : "s"} (

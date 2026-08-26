@@ -42,6 +42,16 @@ const WARN = (
   </>
 );
 
+const LINK = (
+  <path
+    d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"
+    stroke="currentColor"
+    strokeWidth="2.2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  />
+);
+
 /**
  * Three states, each visually distinct:
  *   clean   -> green tick, the only one that reaches the public site
@@ -50,6 +60,10 @@ const WARN = (
  *
  * `failed` shares the red treatment: from a reader's point of view a build
  * whose scan errored is no more trustworthy than one that was flagged.
+ *
+ * `external` is not a scan result at all — it marks a listing we redirect to
+ * the official publisher. Azure rather than green, because green on this site
+ * means "we scanned this build" and this is the case where we did not.
  */
 const TONES: Record<string, Tone> = {
   clean: {
@@ -73,6 +87,11 @@ const TONES: Record<string, Tone> = {
     label: "Scan failed",
     icon: WARN,
   },
+  external: {
+    className: "border-azure-500/40 bg-azure-500/10 text-azure-300",
+    label: "Official source",
+    icon: LINK,
+  },
 };
 
 export default function ScanBadge({
@@ -95,7 +114,10 @@ export default function ScanBadge({
   }
 
   // A date only means something once a scan actually ran.
-  const date = status !== "pending" && scannedAt ? formatDate(scannedAt) : null;
+  const date =
+    status !== "pending" && status !== "external" && scannedAt
+      ? formatDate(scannedAt)
+      : null;
 
   return (
     <span

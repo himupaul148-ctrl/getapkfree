@@ -8,13 +8,14 @@ import {
   useMemo,
   useState,
 } from "react";
-import type { SortKey } from "@/lib/types";
+import type { SortKey, SourceFilter } from "@/lib/types";
 
 export type Filters = {
   search: string;
   category: string;
   android: string;
   sort: SortKey;
+  source: SourceFilter;
 };
 
 type FilterContextValue = Filters & {
@@ -23,6 +24,7 @@ type FilterContextValue = Filters & {
   toggleCategory: (value: string) => void;
   setAndroid: (value: string) => void;
   setSort: (value: SortKey) => void;
+  setSource: (value: SourceFilter) => void;
   reset: () => void;
   activeCount: number;
   isDefault: boolean;
@@ -52,6 +54,7 @@ export default function FilterProvider({
   const [category, setCategory] = useState(initial.category);
   const [android, setAndroid] = useState(initial.android);
   const [sort, setSort] = useState<SortKey>(initial.sort);
+  const [source, setSource] = useState<SourceFilter>(initial.source);
 
   // Mirror the state into the URL so a filtered view can be bookmarked or
   // shared. replaceState keeps this out of the back-history (typing would
@@ -63,9 +66,10 @@ export default function FilterProvider({
     if (category) params.set("category", category);
     if (android) params.set("android", android);
     if (sort !== "trending") params.set("sort", sort);
+    if (source !== "all") params.set("source", source);
     const qs = params.toString();
     window.history.replaceState(window.history.state, "", qs ? `/?${qs}` : "/");
-  }, [search, category, android, sort]);
+  }, [search, category, android, sort, source]);
 
   const toggleCategory = useCallback((value: string) => {
     // Tapping the selected card again clears it, so the cards work as a filter
@@ -78,6 +82,7 @@ export default function FilterProvider({
     setCategory("");
     setAndroid("");
     setSort("trending");
+    setSource("all");
   }, []);
 
   const value = useMemo<FilterContextValue>(() => {
@@ -85,23 +90,26 @@ export default function FilterProvider({
       (search.trim() ? 1 : 0) +
       (category ? 1 : 0) +
       (android ? 1 : 0) +
-      (sort !== "trending" ? 1 : 0);
+      (sort !== "trending" ? 1 : 0) +
+      (source !== "all" ? 1 : 0);
 
     return {
       search,
       category,
       android,
       sort,
+      source,
       setSearch,
       setCategory,
       toggleCategory,
       setAndroid,
       setSort,
+      setSource,
       reset,
       activeCount,
       isDefault: activeCount === 0,
     };
-  }, [search, category, android, sort, toggleCategory, reset]);
+  }, [search, category, android, sort, source, toggleCategory, reset]);
 
   return <FilterContext.Provider value={value}>{children}</FilterContext.Provider>;
 }

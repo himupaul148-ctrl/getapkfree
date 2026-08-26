@@ -11,6 +11,7 @@ import {
   normaliseAndroid,
   normaliseCategory,
   normaliseSort,
+  normaliseSource,
 } from "@/lib/filters";
 import { absolute, SITE_DESCRIPTION } from "@/lib/seo";
 
@@ -78,6 +79,7 @@ export default async function HomePage({
     category?: string;
     android?: string;
     sort?: string;
+    source?: string;
   }>;
 }) {
   const params = await searchParams;
@@ -87,6 +89,7 @@ export default async function HomePage({
     category: normaliseCategory(params.category),
     android: normaliseAndroid(params.android),
     sort: normaliseSort(params.sort),
+    source: normaliseSource(params.source),
   };
 
   return (

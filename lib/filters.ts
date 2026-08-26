@@ -1,5 +1,5 @@
-import { ANDROID_LEVELS, CATEGORIES, SORT_OPTIONS } from "@/lib/types";
-import type { SortKey } from "@/lib/types";
+import { ANDROID_LEVELS, CATEGORIES, SORT_OPTIONS, SOURCE_FILTERS } from "@/lib/types";
+import type { SortKey, SourceFilter } from "@/lib/types";
 
 /**
  * Pure helpers for reading filter values out of a URL. They live here rather
@@ -24,4 +24,10 @@ export function normaliseAndroid(raw: string | undefined): string {
   if (!raw) return "";
   const match = ANDROID_LEVELS.find((level) => level === raw.trim());
   return match ?? "";
+}
+
+export function normaliseSource(raw: string | undefined): SourceFilter {
+  return SOURCE_FILTERS.includes(raw as SourceFilter)
+    ? (raw as SourceFilter)
+    : "all";
 }

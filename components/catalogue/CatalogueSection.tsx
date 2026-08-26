@@ -36,6 +36,7 @@ export default function CatalogueSection({ apps }: { apps: AppSummary[] }) {
     category,
     android,
     sort,
+    source,
     reset,
     activeCount,
     isDefault,
@@ -91,6 +92,7 @@ export default function CatalogueSection({ apps }: { apps: AppSummary[] }) {
     const filtered = apps.filter((app) => {
       if (needle && !matches(app, needle)) return false;
       if (category && app.category !== category) return false;
+      if (source !== "all" && app.sourceType !== source) return false;
       // "Android X+" is the device you have — show what will install on it.
       if (deviceLevel && androidLevel(app.minAndroid) > deviceLevel) return false;
       return true;
@@ -120,12 +122,12 @@ export default function CatalogueSection({ apps }: { apps: AppSummary[] }) {
         );
     }
     return sorted;
-  }, [apps, needle, category, android, sort]);
+  }, [apps, needle, category, android, sort, source]);
 
   // A new filter means a new result set; start again from the first page.
   useEffect(() => {
     setVisible(PAGE_SIZE);
-  }, [needle, category, android, sort]);
+  }, [needle, category, android, sort, source]);
 
   function onSearchKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
     if (!openSuggestions || suggestions.length === 0) return;

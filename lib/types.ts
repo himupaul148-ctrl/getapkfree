@@ -1,4 +1,12 @@
-export type ScanStatus = "pending" | "clean" | "flagged" | "failed";
+import type { SourceType } from "@/lib/sources";
+
+/** "external" means we did not scan it — the official publisher serves it. */
+export type ScanStatus =
+  | "pending"
+  | "clean"
+  | "flagged"
+  | "failed"
+  | "external";
 
 export type App = {
   id: string;
@@ -14,6 +22,9 @@ export type App = {
   screenshots: string[];
   rating: number | null;
   rating_count: number;
+  source_type: SourceType;
+  external_url: string | null;
+  hosted_locally: boolean;
 };
 
 export type Version = {
@@ -69,6 +80,9 @@ export type AppSummary = {
   scanStatus: ScanStatus | null;
   rating: number | null;
   ratingCount: number;
+  sourceType: SourceType;
+  externalUrl: string | null;
+  hostedLocally: boolean;
 };
 
 export const SORT_OPTIONS = [
@@ -94,6 +108,20 @@ export const SORT_LABELS: Record<SortKey, string> = {
  * this", so it shows apps whose minimum is at or below it.
  */
 export const ANDROID_LEVELS = ["8.0", "9.0", "10.0", "11.0", "12.0"] as const;
+
+/**
+ * Source filter. "all" is the default because the catalogue is meant to read
+ * as one list; the other two exist for people who specifically want builds we
+ * link from F-Droid, or specifically want official-store listings.
+ */
+export const SOURCE_FILTERS = ["all", "fdroid", "external"] as const;
+export type SourceFilter = (typeof SOURCE_FILTERS)[number];
+
+export const SOURCE_FILTER_LABELS: Record<SourceFilter, string> = {
+  all: "All sources",
+  fdroid: "F-Droid only",
+  external: "Official stores only",
+};
 
 /** The eight categories the site is organised around. */
 export const CATEGORIES = [

@@ -1,5 +1,6 @@
 import AppsManager, { type ManagedApp } from "@/components/admin/AppsManager";
 import { createClient } from "@/lib/supabase/server";
+import type { SourceType } from "@/lib/sources";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,8 @@ type Row = {
   developer_name: string | null;
   created_at: string;
   download_count: number | null;
+  source_type: SourceType;
+  external_url: string | null;
   versions: { id: string; published: boolean }[];
 };
 
@@ -24,7 +27,7 @@ export default async function AdminAppsPage() {
   const { data, error } = await supabase
     .from("apps")
     .select(
-      "id, name, slug, package_name, category, description, developer_name, created_at, download_count, versions(id, published)",
+      "id, name, slug, package_name, category, description, developer_name, created_at, download_count, source_type, external_url, versions(id, published)",
     )
     .order("created_at", { ascending: false })
     .returns<Row[]>();
@@ -41,13 +44,17 @@ export default async function AdminAppsPage() {
     downloadCount: row.download_count ?? 0,
     versionCount: row.versions?.length ?? 0,
     publishedCount: (row.versions ?? []).filter((v) => v.published).length,
+    sourceType: row.source_type ?? "fdroid",
+    externalUrl: row.external_url ?? null,
   }));
 
   return (
     <div>
       <h2 className="text-xl font-bold tracking-tight">Apps</h2>
       <p className="mt-1 text-sm text-fg-muted">
-        {apps.length} app{apps.length === 1 ? "" : "s"} in the catalogue.
+        {apps.length} app{apps.length === 1 ? "" : "s"} in the catalogue —{" "}
+        {apps.filter((a) => a.sourceType === "external").length} external,{" "}
+        {apps.filter((a) => a.sourceType !== "external").length} hosted via F-Droid.
       </p>
 
       {error && (

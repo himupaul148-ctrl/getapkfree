@@ -37,6 +37,9 @@ export function toSummary(app: AppWithVersions): AppSummary {
     scanStatus: latest?.scan_status ?? null,
     rating: app.rating ?? null,
     ratingCount: app.rating_count ?? 0,
+    sourceType: app.source_type ?? "fdroid",
+    externalUrl: app.external_url ?? null,
+    hostedLocally: app.hosted_locally ?? true,
   };
 }
 

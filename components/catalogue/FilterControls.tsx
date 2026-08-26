@@ -1,13 +1,28 @@
 "use client";
 
 import { useFilters } from "@/components/catalogue/FilterProvider";
-import { ANDROID_LEVELS, CATEGORIES, SORT_LABELS, SORT_OPTIONS } from "@/lib/types";
-import type { SortKey } from "@/lib/types";
+import {
+  ANDROID_LEVELS,
+  CATEGORIES,
+  SORT_LABELS,
+  SORT_OPTIONS,
+  SOURCE_FILTERS,
+  SOURCE_FILTER_LABELS,
+} from "@/lib/types";
+import type { SortKey, SourceFilter } from "@/lib/types";
 
-/** The three dropdowns, shared by the desktop bar and the mobile drawer. */
+/** The four dropdowns, shared by the desktop bar and the mobile drawer. */
 export default function FilterControls({ idPrefix }: { idPrefix: string }) {
-  const { category, setCategory, android, setAndroid, sort, setSort } =
-    useFilters();
+  const {
+    category,
+    setCategory,
+    android,
+    setAndroid,
+    sort,
+    setSort,
+    source,
+    setSource,
+  } = useFilters();
 
   return (
     <>
@@ -34,6 +49,17 @@ export default function FilterControls({ idPrefix }: { idPrefix: string }) {
             label: `Android ${level}+`,
           })),
         ]}
+      />
+
+      <Select
+        id={`${idPrefix}-source`}
+        label="Source"
+        value={source}
+        onChange={(value) => setSource(value as SourceFilter)}
+        options={SOURCE_FILTERS.map((key) => ({
+          value: key,
+          label: SOURCE_FILTER_LABELS[key],
+        }))}
       />
 
       <Select

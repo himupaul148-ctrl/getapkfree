@@ -1,6 +1,7 @@
 import Link from "next/link";
 import AppIcon from "@/components/AppIcon";
 import ScanBadge from "@/components/ScanBadge";
+import SourceBadge from "@/components/SourceBadge";
 import RatingStars from "@/components/RatingStars";
 import FavoriteToggle from "@/components/FavoriteToggle";
 import { formatBytes, formatCount, formatRelative } from "@/lib/format";
@@ -35,7 +36,14 @@ export default function AppCard({ app, rank }: { app: AppSummary; rank?: number 
       </p>
 
       <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
-        <ScanBadge status={app.scanStatus} scannedAt={app.scannedAt} />
+        <SourceBadge sourceType={app.sourceType} externalUrl={app.externalUrl} />
+        {app.sourceType !== "external" && (
+          <ScanBadge
+            status={app.scanStatus}
+            scannedAt={app.scannedAt}
+            showDate={false}
+          />
+        )}
         {app.rating !== null && (
           <RatingStars rating={app.rating} count={app.ratingCount} compact />
         )}
@@ -58,10 +66,12 @@ export default function AppCard({ app, rank }: { app: AppSummary; rank?: number 
           <dt className="sr-only">Downloads</dt>
           <dd className="text-azure-400">{formatCount(app.downloadCount)} downloads</dd>
         </div>
-        <div className="flex gap-1.5">
-          <dt className="sr-only">Size</dt>
-          <dd>{formatBytes(app.fileSize)}</dd>
-        </div>
+        {app.hostedLocally && (
+          <div className="flex gap-1.5">
+            <dt className="sr-only">Size</dt>
+            <dd>{formatBytes(app.fileSize)}</dd>
+          </div>
+        )}
         <div className="ml-auto flex gap-1.5">
           <dt className="sr-only">Updated</dt>
           <dd>{formatRelative(app.lastUpdated)}</dd>
