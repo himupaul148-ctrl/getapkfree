@@ -15,9 +15,12 @@ Vercel's bandwidth — it is not worth doing purely for speed.
 If you do proxy through Cloudflare, set SSL/TLS mode to **Full (strict)**.
 Flexible mode causes redirect loops with Vercel.
 
-## What the app already sends
+## What the app sends, and what Vercel forwards
 
-Verified against a production build:
+These differ, and the difference is the single most important thing on this
+page.
+
+**What Next.js generates** (measured against `next start` locally):
 
 | Route | `Cache-Control` |
 | --- | --- |
@@ -27,8 +30,27 @@ Verified against a production build:
 | `/admin`, `/profile`, `/login`, `/signup` | `private, no-store, max-age=0, must-revalidate` |
 | `/` (homepage) | `private, no-cache, no-store` — see caveat below |
 
-Cloudflare respects `s-maxage`, so **if you enable "Respect existing headers"
-the table above is most of the job** and the rules below are refinements.
+**What Vercel actually sends downstream** (measured against production):
+
+| Route | `Cache-Control` | Vercel's own cache |
+| --- | --- | --- |
+| `/app/<slug>` | `public, max-age=0, must-revalidate` | `X-Vercel-Cache: HIT`, `Age: 1958` |
+| `/how-to-install` | `public, max-age=0, must-revalidate` | `X-Vercel-Cache: HIT`, `Age: 1627` |
+| `/` | `private, no-cache, no-store` | `MISS` (correct — dynamic) |
+
+Vercel consumes `s-maxage` itself, caches at its own edge, and replaces the
+header with `max-age=0, must-revalidate` before the response leaves. ISR is
+working — `X-Vercel-Cache: HIT` and a non-zero `Age` prove it — but the
+`s-maxage` signal never reaches Cloudflare.
+
+**So "Respect existing headers" will cache nothing.** Cloudflare sees
+`max-age=0, must-revalidate` and dutifully revalidates every time. You must set
+an explicit Edge TTL that *overrides* the origin header on the routes you want
+cached. That is the opposite of the usual advice, and it is the mistake to
+avoid here.
+
+Use `X-Vercel-Cache` and `Age` to tell the two caches apart when debugging:
+`CF-Cache-Status` describes Cloudflare, `X-Vercel-Cache` describes Vercel.
 
 ## Manual steps in the Cloudflare dashboard
 
@@ -67,21 +89,37 @@ signed-in response would serve one person's session state to the next visitor.
 Expression:  (starts_with(http.request.uri.path, "/_next/static")) or
              (starts_with(http.request.uri.path, "/_next/image"))
 Setting:     Eligible for cache
-Edge TTL:    Respect origin (they are already immutable / 30 days)
+Edge TTL:    Respect origin
 Browser TTL: Respect origin
 ```
+
+"Respect origin" is right *here only*, because these assets genuinely carry
+`max-age=31536000, immutable` all the way through — Vercel does not rewrite
+them. Their filenames are content-hashed, so a stale copy is impossible.
 
 **Rule 3 — app pages**
 
 ```
 Expression:  starts_with(http.request.uri.path, "/app/")
 Setting:     Eligible for cache
-Edge TTL:    Respect origin   (the app sends s-maxage=3600)
+Edge TTL:    Override origin -> 1 hour
 Browser TTL: 5 minutes
 ```
 
-Prefer "Respect origin" over a hard-coded hour. The app already decides the
-TTL, and a rule that disagrees is one more thing to keep in sync.
+**Rule 4 — static content pages**
+
+```
+Expression:  (http.request.uri.path in {"/about" "/privacy" "/dmca" "/contact" "/how-to-install"})
+Setting:     Eligible for cache
+Edge TTL:    Override origin -> 1 day
+Browser TTL: 1 hour
+```
+
+Rules 3 and 4 must **override**, not respect, the origin header — see the
+section above. The one-hour Edge TTL is chosen to match the app's own
+`revalidate = 3600`, so the two caches expire in step. If you change
+`export const revalidate` in `app/app/[slug]/page.tsx`, change this rule to
+match; nothing enforces that for you.
 
 ### 3. Cache key — the one that will bite you
 
@@ -112,6 +150,18 @@ purge. App pages do: after a deploy that changes page markup, run a
 If you later wire up on-demand revalidation, note that `revalidateTag()`
 invalidates the Next.js cache but **not** Cloudflare's — you would need to call
 Cloudflare's purge API alongside it.
+
+## Verifying it works
+
+After the domain is live:
+
+```
+curl -sI https://getapkfree.com/app/hexfall | grep -iE "cf-cache-status|x-vercel-cache|age|cache-control"
+```
+
+Request it twice. The second should show `CF-Cache-Status: HIT`. If it stays
+`MISS` or `EXPIRED`, the Edge TTL is still respecting the origin header — go
+back to Rules 3 and 4.
 
 ## Caveats
 
