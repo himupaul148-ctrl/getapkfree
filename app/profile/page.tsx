@@ -130,7 +130,7 @@ export default async function ProfilePage({
               ) : (
                 <div className="mt-5 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                   {favoriteApps.map((app) => (
-                    <AppCard key={app.id} app={app} signedIn favorite />
+                    <AppCard key={app.id} app={app} />
                   ))}
                 </div>
               )}

@@ -12,16 +12,32 @@ import ScreenshotGallery from "@/components/ScreenshotGallery";
 import VersionHistory from "@/components/VersionHistory";
 import {
   getAppBySlug,
+  getPopularSlugs,
   getPublishedVersions,
   getRelatedApps,
 } from "@/lib/catalogue";
 import { formatBytes, formatCount, formatDate, formatRelative } from "@/lib/format";
-import { getFavoriteIds } from "@/lib/profile";
-import { getUser } from "@/lib/supabase/server";
 
-export const dynamic = "force-dynamic";
+// Rebuilt at most once an hour. App metadata changes rarely, so this serves
+// from cache instead of hitting Supabase on every request, and gives the CDN
+// an s-maxage header to work with.
+export const revalidate = 3600;
 
 type Props = { params: Promise<{ slug: string }> };
+
+/**
+ * Prerenders the most-downloaded pages at build time and, just as importantly,
+ * puts the whole route into ISR mode — without this the segment renders fully
+ * dynamic and Next sends "private, no-store", which no CDN will cache.
+ *
+ * The long tail is deliberately left out: unlisted slugs render on first
+ * request and are cached from then on, with the same s-maxage header, so
+ * covering all 300+ apps here would cost build time for no benefit.
+ */
+export async function generateStaticParams() {
+  const slugs = await getPopularSlugs(50);
+  return slugs.map((slug) => ({ slug }));
+}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
@@ -35,13 +51,10 @@ export default async function AppDetailPage({ params }: Props) {
   const app = await getAppBySlug(slug);
   if (!app) notFound();
 
-  const [versions, related, user, favoriteIds] = await Promise.all([
+  const [versions, related] = await Promise.all([
     getPublishedVersions(app.id),
     getRelatedApps(app.category, app.id, 4),
-    getUser(),
-    getFavoriteIds(),
   ]);
-  const signedIn = Boolean(user);
 
   const latest = versions[0];
 
@@ -56,7 +69,7 @@ export default async function AppDetailPage({ params }: Props) {
 
       {/* ---- App header ---- */}
       <header className="mt-6 flex flex-col gap-5 sm:flex-row sm:items-start">
-        <AppIcon src={app.icon_url} name={app.name} size={104} />
+        <AppIcon src={app.icon_url} name={app.name} size={104} priority />
 
         <div className="min-w-0 flex-1">
           <h1 className="text-3xl font-bold tracking-tight text-balance sm:text-4xl">
@@ -83,13 +96,7 @@ export default async function AppDetailPage({ params }: Props) {
           </div>
         </div>
 
-        <FavoriteToggle
-          appId={app.id}
-          appName={app.name}
-          signedIn={signedIn}
-          initialFavorite={favoriteIds.has(app.id)}
-          variant="button"
-        />
+        <FavoriteToggle appId={app.id} appName={app.name} variant="button" />
       </header>
 
       {/* ---- Quick info bar ---- */}
@@ -177,12 +184,7 @@ export default async function AppDetailPage({ params }: Props) {
           </p>
           <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {related.map((item) => (
-              <AppCard
-                key={item.id}
-                app={item}
-                signedIn={signedIn}
-                favorite={favoriteIds.has(item.id)}
-              />
+              <AppCard key={item.id} app={item} />
             ))}
           </div>
         </section>

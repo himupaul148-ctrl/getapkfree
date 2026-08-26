@@ -12,7 +12,9 @@ import {
   normaliseSort,
 } from "@/lib/filters";
 
-// Read live from Supabase on every request rather than baking rows in at build time.
+// Reading searchParams for shareable filter URLs makes this route dynamic, so
+// it cannot be ISR. The Supabase query behind it is cached for an hour instead
+// (see lib/catalogue.ts), which is where the real cost was.
 export const dynamic = "force-dynamic";
 
 export default async function HomePage({

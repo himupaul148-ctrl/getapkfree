@@ -6,25 +6,10 @@ import FavoriteToggle from "@/components/FavoriteToggle";
 import { formatBytes, formatCount, formatRelative } from "@/lib/format";
 import type { AppSummary } from "@/lib/types";
 
-export default function AppCard({
-  app,
-  rank,
-  signedIn = false,
-  favorite = false,
-}: {
-  app: AppSummary;
-  rank?: number;
-  signedIn?: boolean;
-  favorite?: boolean;
-}) {
+export default function AppCard({ app, rank }: { app: AppSummary; rank?: number }) {
   return (
     <div className="relative h-full">
-      <FavoriteToggle
-        appId={app.id}
-        appName={app.name}
-        signedIn={signedIn}
-        initialFavorite={favorite}
-      />
+      <FavoriteToggle appId={app.id} appName={app.name} />
       <Link
         href={`/app/${app.slug}`}
         className="group flex h-full flex-col rounded-2xl border border-base-800 bg-base-900 p-5 transition-colors hover:border-brand-500/50 hover:bg-base-850 focus-visible:border-brand-500 focus-visible:outline-none"

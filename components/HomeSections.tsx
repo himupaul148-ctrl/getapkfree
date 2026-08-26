@@ -3,8 +3,6 @@ import CatalogueSection from "@/components/catalogue/CatalogueSection";
 import CategoryCards from "@/components/catalogue/CategoryCards";
 import FilterProvider from "@/components/catalogue/FilterProvider";
 import { getCatalogue } from "@/lib/catalogue";
-import { getFavoriteIds } from "@/lib/profile";
-import { getUser } from "@/lib/supabase/server";
 import { formatRelative } from "@/lib/format";
 import { CATEGORIES } from "@/lib/types";
 import type { Filters } from "@/components/catalogue/FilterProvider";
@@ -15,12 +13,7 @@ import type { Filters } from "@/components/catalogue/FilterProvider";
  * also swallow /about, /how-to-install and every other page.
  */
 export default async function HomeSections({ filters }: { filters: Filters }) {
-  const [{ apps, error }, user, favoriteIds] = await Promise.all([
-    getCatalogue(),
-    getUser(),
-    getFavoriteIds(),
-  ]);
-  const signedIn = Boolean(user);
+  const { apps, error } = await getCatalogue();
 
   if (error) {
     return (
@@ -63,13 +56,7 @@ export default async function HomeSections({ filters }: { filters: Filters }) {
           </p>
           <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {trending.map((app, index) => (
-              <AppCard
-                key={app.id}
-                app={app}
-                rank={index + 1}
-                signedIn={signedIn}
-                favorite={favoriteIds.has(app.id)}
-              />
+              <AppCard key={app.id} app={app} rank={index + 1} />
             ))}
           </div>
         </section>
@@ -77,11 +64,7 @@ export default async function HomeSections({ filters }: { filters: Filters }) {
 
       <CategoryCards counts={counts} />
 
-      <CatalogueSection
-        apps={apps}
-        signedIn={signedIn}
-        favoriteIds={[...favoriteIds]}
-      />
+      <CatalogueSection apps={apps} />
 
       {recentlyUpdated.length > 0 && (
         <section id="recently-updated" className="mt-20">

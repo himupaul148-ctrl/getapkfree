@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Logo from "@/components/Logo";
 import UserMenu from "@/components/UserMenu";
+import { useSessionProfile } from "@/lib/useSessionProfile";
 
 const NAV = [
   { href: "/#categories", label: "Categories" },
@@ -12,13 +13,9 @@ const NAV = [
   { href: "/how-to-install", label: "How to Install" },
 ];
 
-export default function SiteHeader({
-  username,
-  isAdmin = false,
-}: {
-  username: string | null;
-  isAdmin?: boolean;
-}) {
+export default function SiteHeader() {
+  // Read client-side so the root layout stays static and CDN-cacheable.
+  const { username, isAdmin, loading } = useSessionProfile();
   const router = useRouter();
   const [term, setTerm] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -71,7 +68,12 @@ export default function SiteHeader({
         </nav>
 
         <div className="ml-auto flex items-center gap-2 lg:ml-4">
-          {username ? (
+          {loading ? (
+            <span
+              aria-hidden="true"
+              className="hidden h-9 w-24 animate-pulse rounded-xl bg-base-850 sm:block"
+            />
+          ) : username ? (
             <UserMenu username={username} isAdmin={isAdmin} />
           ) : (
             <>
@@ -143,7 +145,7 @@ export default function SiteHeader({
                 </Link>
               </li>
             ))}
-            {!username && (
+            {!username && !loading && (
               <li className="sm:hidden">
                 <Link
                   href="/login"

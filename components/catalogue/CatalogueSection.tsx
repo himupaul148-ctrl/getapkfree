@@ -21,15 +21,7 @@ function matches(app: AppSummary, needle: string): boolean {
   );
 }
 
-export default function CatalogueSection({
-  apps,
-  signedIn = false,
-  favoriteIds = [],
-}: {
-  apps: AppSummary[];
-  signedIn?: boolean;
-  favoriteIds?: string[];
-}) {
+export default function CatalogueSection({ apps }: { apps: AppSummary[] }) {
   const router = useRouter();
   const {
     search,
@@ -42,7 +34,6 @@ export default function CatalogueSection({
     isDefault,
   } = useFilters();
 
-  const favorites = useMemo(() => new Set(favoriteIds), [favoriteIds]);
 
   const [openSuggestions, setOpenSuggestions] = useState(false);
   const [highlighted, setHighlighted] = useState(-1);
@@ -325,12 +316,7 @@ export default function CatalogueSection({
       ) : (
         <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {results.map((app) => (
-            <AppCard
-              key={app.id}
-              app={app}
-              signedIn={signedIn}
-              favorite={favorites.has(app.id)}
-            />
+            <AppCard key={app.id} app={app} />
           ))}
         </div>
       )}

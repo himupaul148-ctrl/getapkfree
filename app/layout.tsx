@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import SiteHeader from "@/components/SiteHeader";
+import FavoritesProvider from "@/components/FavoritesProvider";
 import SiteFooter from "@/components/SiteFooter";
 import ThemeScript from "@/components/ThemeScript";
-import { getProfile } from "@/lib/profile";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -14,11 +14,15 @@ export const metadata: Metadata = {
     "Download legitimate APKs with confidence. Every build is versioned, malware-scanned, and published with its full changelog.",
 };
 
-export default async function RootLayout({
+/**
+ * Deliberately synchronous and cookie-free. Awaiting the profile here made the
+ * root layout dynamic, which cascades to every route: no ISR anywhere and a
+ * "private, no-cache" header on every response, so no CDN could cache a thing.
+ * SiteHeader resolves the session in the browser instead.
+ */
+export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const profile = await getProfile();
-
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -31,14 +35,13 @@ export default async function RootLayout({
         >
           Skip to content
         </a>
-        <SiteHeader
-          username={profile?.username ?? null}
-          isAdmin={profile?.is_admin ?? false}
-        />
-        <main id="main" className="flex-1">
-          {children}
-        </main>
-        <SiteFooter />
+        <FavoritesProvider>
+          <SiteHeader />
+          <main id="main" className="flex-1">
+            {children}
+          </main>
+          <SiteFooter />
+        </FavoritesProvider>
       </body>
     </html>
   );

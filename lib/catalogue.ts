@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { supabase } from "@/lib/supabase/public";
 import { latestVersion } from "@/lib/format";
 import type { App, AppSummary, AppWithVersions, Version } from "@/lib/types";
@@ -39,10 +40,7 @@ export function toSummary(app: AppWithVersions): AppSummary {
   };
 }
 
-export async function getCatalogue(): Promise<{
-  apps: AppSummary[];
-  error: string | null;
-}> {
+async function fetchCatalogue(): Promise<{ apps: AppSummary[]; error: string | null }> {
   const { data, error } = await supabase
     .from("apps")
     .select(SELECT)
@@ -52,6 +50,17 @@ export async function getCatalogue(): Promise<{
   if (error) return { apps: [], error: error.message };
   return { apps: (data ?? []).map(toSummary), error: null };
 }
+
+/**
+ * The homepage reads searchParams for shareable filter URLs, which makes it a
+ * dynamic route — it cannot be ISR. Caching the query itself gets most of the
+ * benefit anyway: Supabase is hit once an hour rather than once per visitor.
+ * Tagged so an admin edit can drop it immediately via revalidateTag.
+ */
+export const getCatalogue = unstable_cache(fetchCatalogue, ["catalogue"], {
+  revalidate: 3600,
+  tags: ["catalogue"],
+});
 
 export async function getAppBySlug(slug: string): Promise<App | null> {
   const { data } = await supabase
@@ -94,4 +103,15 @@ export async function getRelatedApps(
     .limit(limit)
     .returns<AppWithVersions[]>();
   return (data ?? []).map(toSummary);
+}
+
+/** Slugs of the most-downloaded apps, for build-time prerendering. */
+export async function getPopularSlugs(limit = 50): Promise<string[]> {
+  const { data } = await supabase
+    .from("apps")
+    .select("slug")
+    .order("download_count", { ascending: false })
+    .limit(limit)
+    .returns<{ slug: string }[]>();
+  return (data ?? []).map((row) => row.slug);
 }
