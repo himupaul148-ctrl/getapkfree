@@ -2,6 +2,10 @@
  * Placeholders shaped like the real thing, so the layout does not jump when
  * content arrives. `animate-pulse` respects the reduced-motion rule in
  * globals.css, which collapses the animation rather than removing the shape.
+ *
+ * Every wrapper is aria-hidden and none is a live region. React can leave a
+ * resolved Suspense fallback in the DOM, and a role="status" skeleton that
+ * outlives its boundary announces "Loading…" to a screen reader forever.
  */
 
 function Block({ className }: { className: string }) {
@@ -45,11 +49,10 @@ export function AppGridSkeleton({
   className?: string;
 }) {
   return (
-    <div className={className} role="status" aria-label="Loading apps">
+    <div className={className} aria-hidden="true">
       {Array.from({ length: count }, (_, i) => (
         <AppCardSkeleton key={i} />
       ))}
-      <span className="sr-only">Loading apps…</span>
     </div>
   );
 }
@@ -68,8 +71,7 @@ export function CategoryGridSkeleton() {
   return (
     <div
       className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"
-      role="status"
-      aria-label="Loading categories"
+      aria-hidden="true"
     >
       {Array.from({ length: 8 }, (_, i) => (
         <div
@@ -90,8 +92,7 @@ export function ListSkeleton({ rows = 6 }: { rows?: number }) {
   return (
     <div
       className="divide-y divide-base-800 overflow-hidden rounded-2xl border border-base-800 bg-base-900"
-      role="status"
-      aria-label="Loading list"
+      aria-hidden="true"
     >
       {Array.from({ length: rows }, (_, i) => (
         <div key={i} className="flex animate-pulse items-center gap-4 px-5 py-4">

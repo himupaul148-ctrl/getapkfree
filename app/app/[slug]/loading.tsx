@@ -7,7 +7,7 @@ function Block({ className }: { className: string }) {
 /** Mirrors the detail page's shape so nothing shifts when the data lands. */
 export default function AppDetailLoading() {
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6" role="status" aria-label="Loading app">
+    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6" aria-hidden="true">
       <Block className="h-4 w-32" />
 
       <header className="mt-6 flex animate-pulse flex-col gap-5 sm:flex-row sm:items-start">
@@ -57,7 +57,6 @@ export default function AppDetailLoading() {
         <AppGridSkeleton count={4} className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4" />
       </div>
 
-      <span className="sr-only">Loading app…</span>
     </div>
   );
 }
