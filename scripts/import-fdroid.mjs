@@ -16,6 +16,8 @@
 
 import { createClient } from "@supabase/supabase-js";
 
+import { resolveMedia } from "./fdroid-media.mjs";
+
 const INDEX_URL = "https://f-droid.org/repo/index-v1.json";
 const REPO_BASE = "https://f-droid.org/repo";
 const VT_FILES = "https://www.virustotal.com/api/v3/files";
@@ -362,13 +364,18 @@ async function main() {
     if (verdict === "flagged") flagged++;
     if (verdict === "pending") pending++;
 
+    // Icon and screenshots both hide in the localized block for roughly half
+    // the index; resolveMedia knows where to look.
+    const media = resolveMedia(app, packageName);
+
     const row = {
       name,
       slug: slugify(name) || slugify(packageName),
       package_name: packageName,
       category: mapCategory(app.categories),
       description: description || null,
-      icon_url: app.icon ? `${REPO_BASE}/icons-640/${app.icon}` : null,
+      icon_url: media.iconUrl,
+      screenshots: media.screenshots,
       developer_name: developerFrom(app),
     };
 
