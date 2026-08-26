@@ -86,7 +86,9 @@
 
   --c-fg: #0d1520;
   --c-fg-muted: #4a5a6d;
-  --c-fg-dim: #6b7b8d;
+  /* Was #6b7b8d, which measured 4.08:1 on the light page background —
+     Lighthouse flagged it. Darkened to clear AA for 14px text. */
+  --c-fg-dim: #55636f;
 
   /*
    * Darker than the dark-theme greens on purpose. brand-500 is a button

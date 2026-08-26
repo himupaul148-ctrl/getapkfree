@@ -106,7 +106,7 @@ export default function ScanBadge({
         {tone.icon}
       </svg>
       {tone.label}
-      {showDate && date && <span className="font-normal opacity-70">{date}</span>}
+      {showDate && date && <span className="font-normal">{date}</span>}
     </span>
   );
 }

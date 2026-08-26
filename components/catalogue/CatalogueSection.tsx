@@ -10,6 +10,13 @@ import type { AppSummary } from "@/lib/types";
 
 const MAX_SUGGESTIONS = 6;
 
+/**
+ * Cards rendered per page. Filtering still runs over the whole catalogue — only
+ * the rendering is capped. Putting all 300+ cards in the DOM at once cost ~1.8s
+ * of hydration blocking time on a throttled mobile CPU.
+ */
+const PAGE_SIZE = 24;
+
 /** Name, description and package name, plus developer and category. */
 function matches(app: AppSummary, needle: string): boolean {
   return (
@@ -38,6 +45,7 @@ export default function CatalogueSection({ apps }: { apps: AppSummary[] }) {
   const [openSuggestions, setOpenSuggestions] = useState(false);
   const [highlighted, setHighlighted] = useState(-1);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [visible, setVisible] = useState(PAGE_SIZE);
   const searchRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -113,6 +121,11 @@ export default function CatalogueSection({ apps }: { apps: AppSummary[] }) {
     }
     return sorted;
   }, [apps, needle, category, android, sort]);
+
+  // A new filter means a new result set; start again from the first page.
+  useEffect(() => {
+    setVisible(PAGE_SIZE);
+  }, [needle, category, android, sort]);
 
   function onSearchKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
     if (!openSuggestions || suggestions.length === 0) return;
@@ -314,11 +327,28 @@ export default function CatalogueSection({ apps }: { apps: AppSummary[] }) {
           </button>
         </div>
       ) : (
-        <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {results.map((app) => (
-            <AppCard key={app.id} app={app} />
-          ))}
-        </div>
+        <>
+          <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {results.slice(0, visible).map((app) => (
+              <AppCard key={app.id} app={app} />
+            ))}
+          </div>
+
+          {visible < results.length && (
+            <div className="mt-8 flex flex-col items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setVisible((v) => v + PAGE_SIZE)}
+                className="rounded-xl border border-base-700 px-6 py-3 text-sm font-medium text-fg-muted transition-colors hover:border-brand-500/50 hover:text-brand-400"
+              >
+                Show more apps
+              </button>
+              <p className="text-xs text-fg-dim">
+                Showing {visible} of {results.length}
+              </p>
+            </div>
+          )}
+        </>
       )}
     </section>
   );

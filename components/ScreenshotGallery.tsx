@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 
 export default function ScreenshotGallery({
@@ -55,11 +56,17 @@ export default function ScreenshotGallery({
               className="group block w-full overflow-hidden rounded-xl border border-base-800 bg-base-900 transition-colors hover:border-brand-500/50"
               aria-label={`Open screenshot ${index + 1} of ${screenshots.length}`}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              {/* The whole first row sits above the fold on desktop, so any of
+                  the four can be the LCP element — Lighthouse caught it landing
+                  on the fourth. Eager for the row; preload only the first. */}
+              <Image
                 src={src}
                 alt={`${appName} screenshot ${index + 1}`}
-                loading="lazy"
+                width={270}
+                height={480}
+                sizes="(max-width: 640px) 40vw, 22vw"
+                priority={index === 0}
+                loading={index < 4 ? "eager" : "lazy"}
                 className="aspect-[9/16] w-full object-cover transition-transform group-hover:scale-[1.03]"
               />
             </button>

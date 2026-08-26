@@ -3,15 +3,44 @@ import SiteHeader from "@/components/SiteHeader";
 import FavoritesProvider from "@/components/FavoritesProvider";
 import SiteFooter from "@/components/SiteFooter";
 import ThemeScript from "@/components/ThemeScript";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/seo";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  // metadataBase lets every page use relative OG image paths and still emit
+  // absolute URLs, which is what crawlers and link unfurlers require.
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: "GetApkFree — free, open-source Android apps, safe and scanned",
-    template: "%s · GetApkFree",
+    default: "GetApkFree — Free, Open-Source Android APK Downloads",
+    template: "%s | " + SITE_NAME,
   },
-  description:
-    "Download legitimate APKs with confidence. Every build is versioned, malware-scanned, and published with its full changelog.",
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  keywords: [
+    "APK download",
+    "open source Android apps",
+    "F-Droid mirror",
+    "free Android apps",
+    "safe APK",
+  ],
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    locale: "en_GB",
+    url: SITE_URL,
+    title: "GetApkFree — Free, Open-Source Android APK Downloads",
+    description: SITE_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "GetApkFree — Free, Open-Source Android APK Downloads",
+    description: SITE_DESCRIPTION,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, "max-image-preview": "large" },
+  },
 };
 
 /**

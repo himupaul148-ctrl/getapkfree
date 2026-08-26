@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import AppCard from "@/components/AppCard";
+import AppJsonLd from "@/components/AppJsonLd";
 import AppIcon from "@/components/AppIcon";
 import FavoriteToggle from "@/components/FavoriteToggle";
 import DownloadButton from "@/components/DownloadButton";
@@ -17,6 +18,7 @@ import {
   getRelatedApps,
 } from "@/lib/catalogue";
 import { formatBytes, formatCount, formatDate, formatRelative } from "@/lib/format";
+import { absolute, clampDescription, SITE_NAME } from "@/lib/seo";
 
 // Rebuilt at most once an hour. App metadata changes rarely, so this serves
 // from cache instead of hitting Supabase on every request, and gives the CDN
@@ -42,8 +44,46 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const app = await getAppBySlug(slug);
-  if (!app) return { title: "App not found" };
-  return { title: app.name, description: app.description ?? undefined };
+  if (!app) return { title: "App not found", robots: { index: false } };
+
+  const versions = await getPublishedVersions(app.id);
+  const latest = versions[0];
+  const version = latest ? ` ${latest.version_name}` : "";
+
+  // Front-load the app name and "APK": that is what people actually type.
+  const title = `${app.name} APK${version} — Free Download`;
+
+  const facts = [
+    latest?.file_size ? formatBytes(latest.file_size) : null,
+    latest?.min_android_version ? `Android ${latest.min_android_version}+` : null,
+  ].filter(Boolean).join(" · ");
+
+  const description = clampDescription(
+    [app.description, facts && `(${facts})`, "Free, open-source, malware-scanned."]
+      .filter(Boolean)
+      .join(" "),
+  );
+
+  const url = absolute(`/app/${app.slug}`);
+
+  return {
+    title,
+    description,
+    alternates: { canonical: url },
+    openGraph: {
+      type: "website",
+      url,
+      title: `${title} | ${SITE_NAME}`,
+      description,
+      images: app.icon_url ? [{ url: app.icon_url, alt: app.name }] : undefined,
+    },
+    twitter: {
+      card: "summary",
+      title: `${title} | ${SITE_NAME}`,
+      description,
+      images: app.icon_url ? [app.icon_url] : undefined,
+    },
+  };
 }
 
 export default async function AppDetailPage({ params }: Props) {
@@ -60,6 +100,7 @@ export default async function AppDetailPage({ params }: Props) {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+      <AppJsonLd app={app} latest={latest} />
       <Link
         href="/"
         className="text-sm text-fg-dim transition-colors hover:text-brand-400"
