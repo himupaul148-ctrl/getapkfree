@@ -5,10 +5,19 @@ import { CATEGORIES } from "@/lib/types";
 const SITE_LINKS = [
   { href: "/about", label: "About" },
   { href: "/contact", label: "Contact" },
-  { href: "/privacy", label: "Privacy" },
+  { href: "/privacy", label: "Privacy Policy" },
+  { href: "/terms", label: "Terms of Service" },
   { href: "/dmca", label: "DMCA" },
   { href: "/how-to-install", label: "How to Install" },
   { href: "/blog", label: "Blog" },
+];
+
+/** The subset a reader looks for at the bottom of a page. */
+const LEGAL_LINKS = [
+  { href: "/privacy", label: "Privacy" },
+  { href: "/terms", label: "Terms" },
+  { href: "/dmca", label: "DMCA" },
+  { href: "/contact", label: "Contact" },
 ];
 
 export default function SiteFooter() {
@@ -68,11 +77,26 @@ export default function SiteFooter() {
 
       <div className="border-t border-base-800">
         <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-6 text-xs text-fg-dim sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <p>© {new Date().getFullYear()} GetApkFree.com — open source, no tracking.</p>
           <p>
-            Demo catalogue: apps are fictional and download links are
-            non-functional placeholders.
+            © {new Date().getFullYear()} GetApkFree.com — open-source apps,
+            linked to their official sources.
           </p>
+
+          {/* Repeated here so the legal pages are one tap away from the
+              bottom of every page, including on mobile. */}
+          <nav aria-label="Legal" className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            {LEGAL_LINKS.map((link, index) => (
+              <span key={link.href} className="flex items-center gap-2">
+                {index > 0 && <span aria-hidden="true">·</span>}
+                <Link
+                  href={link.href}
+                  className="underline transition-colors hover:text-brand-400"
+                >
+                  {link.label}
+                </Link>
+              </span>
+            ))}
+          </nav>
         </div>
       </div>
     </footer>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import SiteHeader from "@/components/SiteHeader";
 import FavoritesProvider from "@/components/FavoritesProvider";
 import SiteFooter from "@/components/SiteFooter";
+import { AdSense, Analytics } from "@/components/Analytics";
 import ThemeScript from "@/components/ThemeScript";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/seo";
 import "./globals.css";
@@ -71,6 +72,11 @@ export default function RootLayout({
           </main>
           <SiteFooter />
         </FavoritesProvider>
+
+        {/* Both render null unless their env var is set, so a deployment
+            without them ships no third-party script at all. */}
+        <Analytics />
+        <AdSense />
       </body>
     </html>
   );
