@@ -18,9 +18,11 @@ export async function POST(request: NextRequest) {
   }
 
   let slug: string | null = null;
+  let blogSlug: string | null = null;
   try {
     const body = await request.json();
     slug = body.slug ? String(body.slug) : null;
+    blogSlug = body.blogSlug ? String(body.blogSlug) : null;
   } catch {
     /* body is optional */
   }
@@ -32,7 +34,15 @@ export async function POST(request: NextRequest) {
   // The homepage is force-dynamic, but its cached data comes from the tag
   // above; the detail page is ISR and needs its own path dropped.
   if (slug) revalidatePath(`/app/${slug}`);
+
+  // Blog posts have their own cache tag and their own ISR paths.
+  if (blogSlug) {
+    revalidateTag("blog", "max");
+    revalidatePath("/blog");
+    revalidatePath(`/blog/${blogSlug}`);
+  }
+
   revalidatePath("/sitemap.xml");
 
-  return NextResponse.json({ revalidated: true, slug });
+  return NextResponse.json({ revalidated: true, slug, blogSlug });
 }

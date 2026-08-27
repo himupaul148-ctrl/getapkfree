@@ -11,6 +11,7 @@ const NAV = [
   { href: "/#categories", label: "Categories" },
   { href: "/#recently-updated", label: "Latest" },
   { href: "/how-to-install", label: "How to Install" },
+  { href: "/blog", label: "Blog" },
 ];
 
 export default function SiteHeader() {

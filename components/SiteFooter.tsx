@@ -8,6 +8,7 @@ const SITE_LINKS = [
   { href: "/privacy", label: "Privacy" },
   { href: "/dmca", label: "DMCA" },
   { href: "/how-to-install", label: "How to Install" },
+  { href: "/blog", label: "Blog" },
 ];
 
 export default function SiteFooter() {

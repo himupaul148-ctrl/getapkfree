@@ -15,6 +15,7 @@ const TABS = [
   { href: "/admin/upload", label: "Upload" },
   { href: "/admin/add-external-app", label: "Add external" },
   { href: "/admin/apps", label: "Apps" },
+  { href: "/admin/blog", label: "Blog" },
 ];
 
 export default async function AdminLayout({

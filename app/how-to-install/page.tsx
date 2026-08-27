@@ -154,6 +154,25 @@ export default function HowToInstallPage() {
         </li>
       </ul>
 
+      <h2>Related guides</h2>
+      <ul>
+        <li>
+          <Link href="/blog/best-privacy-apps-android-2026">
+            Best privacy apps for Android in 2026
+          </Link>{" "}
+          — what to install once sideloading works.
+        </li>
+        <li>
+          <Link href="/blog/top-lightweight-tools-under-10mb">
+            Top lightweight tools under 10MB
+          </Link>{" "}
+          — for older or storage-limited devices.
+        </li>
+        <li>
+          <Link href="/blog">All guides</Link> — the full blog.
+        </li>
+      </ul>
+
       <p>
         Browse the <Link href="/">catalogue</Link> when you are ready, or read{" "}
         <Link href="/about">how builds get listed</Link>.

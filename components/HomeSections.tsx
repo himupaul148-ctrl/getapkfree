@@ -1,3 +1,4 @@
+import Link from "next/link";
 import AppCard from "@/components/AppCard";
 import CatalogueSection from "@/components/catalogue/CatalogueSection";
 import CategoryCards from "@/components/catalogue/CategoryCards";
@@ -48,6 +49,31 @@ export default async function HomeSections({ filters }: { filters: Filters }) {
       key={`${filters.search}|${filters.category}|${filters.android}|${filters.sort}`}
       initial={filters}
     >
+      {/* Sits above Trending so the editorial route is offered before the
+          reader falls into browsing the catalogue. */}
+      <section className="mt-16">
+        <Link
+          href="/blog"
+          className="group flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-azure-500/25 bg-azure-500/5 p-5 transition-colors hover:border-azure-500/50"
+        >
+          <span className="rounded-full bg-azure-500/15 px-2.5 py-0.5 text-xs font-medium text-azure-300">
+            New
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold text-fg">
+              Not sure what to install?
+            </span>
+            <span className="mt-0.5 block text-sm text-fg-muted">
+              Read our guides — privacy picks, lightweight tools, and what to
+              avoid.
+            </span>
+          </span>
+          <span className="text-sm font-medium text-azure-300 transition-transform group-hover:translate-x-0.5">
+            Check the blog →
+          </span>
+        </Link>
+      </section>
+
       {trending.length > 0 && (
         <section id="trending" className="mt-16">
           <h2 className="text-2xl font-bold tracking-tight">Trending This Week</h2>

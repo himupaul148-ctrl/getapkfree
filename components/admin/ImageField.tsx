@@ -25,14 +25,17 @@ export default function ImageField({
   slug,
   kind,
   hint,
+  bucket = "app-images",
 }: {
   label: string;
   value: string;
   onChange: (url: string) => void;
-  /** Used to namespace the storage path so an app's images stay together. */
+  /** Used to namespace the storage path so one record's images stay together. */
   slug: string;
-  kind: "icon" | "screenshot";
+  kind: "icon" | "screenshot" | "cover";
   hint?: string;
+  /** Blog covers live in their own bucket; apps keep the default. */
+  bucket?: "app-images" | "blog-images";
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -60,13 +63,13 @@ export default function ImageField({
       const path = `${slug || "app"}/${kind}-${Date.now().toString(36)}.${ext}`;
 
       const { error: upErr } = await supabase.storage
-        .from("app-images")
+        .from(bucket)
         .upload(path, file, { cacheControl: "31536000", upsert: false });
       if (upErr) throw upErr;
 
       const {
         data: { publicUrl },
-      } = supabase.storage.from("app-images").getPublicUrl(path);
+      } = supabase.storage.from(bucket).getPublicUrl(path);
       onChange(publicUrl);
     } catch (caught) {
       setError(
