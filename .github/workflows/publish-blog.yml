@@ -1,0 +1,164 @@
+name: Publish blog posts
+
+on:
+  push:
+    paths:
+      - "blog-posts/**.md"
+      - "!blog-posts/README.md"
+  pull_request:
+    paths:
+      - "blog-posts/**.md"
+      - "!blog-posts/README.md"
+  # Useful for republishing everything after an outage.
+  workflow_dispatch:
+    inputs:
+      all:
+        description: "Publish every post in blog-posts/, not just changed ones"
+        type: boolean
+        default: false
+
+# A second push while the first is still publishing would race on the same
+# rows. Queue them instead of cancelling: an in-flight publish should finish.
+concurrency:
+  group: publish-blog-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      # createCommitComment needs contents:write — a read-only token 403s on it.
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Need the previous commit to diff against.
+          fetch-depth: 2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # Every GitHub-controlled value is passed through env rather than
+      # interpolated into the script body: a ${{ }} inside a run: block is
+      # expanded by the runner before the shell ever sees it, which is the
+      # standard Actions script-injection route.
+      - name: Work out which posts changed
+        id: changed
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          ALL: ${{ inputs.all }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [ "$EVENT" = "workflow_dispatch" ] && [ "$ALL" = "true" ]; then
+            files=$(git ls-files 'blog-posts/*.md')
+          elif [ "$EVENT" = "pull_request" ]; then
+            git fetch --no-tags --depth=1 origin "$BASE_REF"
+            files=$(git diff --name-only --diff-filter=ACM \
+              "origin/$BASE_REF...HEAD" -- 'blog-posts/*.md')
+          else
+            # A first push to a new branch has no usable "before" commit.
+            if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+              files=$(git ls-files 'blog-posts/*.md')
+            else
+              files=$(git diff --name-only --diff-filter=ACM \
+                "$BEFORE" "$SHA" -- 'blog-posts/*.md')
+            fi
+          fi
+
+          # The folder README is documentation, not a post. The paths filter
+          # already excludes it, but git ls-files above ignores that filter.
+          files=$(printf '%s\n' "$files" | grep -v 'blog-posts/README.md' || true)
+
+          # Deletions are excluded by --diff-filter=ACM on purpose: removing a
+          # markdown file must not silently unpublish a live post.
+          echo "Changed posts:"
+          echo "${files:-(none)}"
+
+          {
+            echo "files<<__EOF__"
+            echo "${files}"
+            echo "__EOF__"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Validate posts
+        if: steps.changed.outputs.files != ''
+        env:
+          DRY_RUN: "1"
+          FILES: ${{ steps.changed.outputs.files }}
+        run: |
+          # Parse everything before publishing anything, so a typo in the third
+          # file does not leave the first two already live.
+          printf '%s\n' "$FILES" | xargs -r node scripts/publish-blog-posts.mjs
+
+      - name: Publish
+        id: publish
+        if: steps.changed.outputs.files != '' && github.event_name != 'pull_request'
+        env:
+          BLOG_PUBLISH_TOKEN: ${{ secrets.BLOG_PUBLISH_TOKEN }}
+          SITE_URL: ${{ vars.SITE_URL || 'https://getapkfree.vercel.app' }}
+          FILES: ${{ steps.changed.outputs.files }}
+        run: |
+          printf '%s\n' "$FILES" | xargs -r node scripts/publish-blog-posts.mjs
+
+      - name: Report the result
+        if: always() && steps.changed.outputs.files != ''
+        uses: actions/github-script@v7
+        env:
+          RESULTS: ${{ steps.publish.outputs.results }}
+          DRY: ${{ github.event_name == 'pull_request' }}
+          FILES: ${{ steps.changed.outputs.files }}
+        with:
+          script: |
+            const dryRun = process.env.DRY === 'true';
+            let results = [];
+            try { results = JSON.parse(process.env.RESULTS || '[]'); } catch {}
+
+            let body;
+            if (dryRun) {
+              body = [
+                '### Blog posts validated',
+                '',
+                'Frontmatter parsed cleanly. These publish when the branch merges:',
+                '',
+                ...(process.env.FILES || '')
+                  .split('\n').filter(Boolean).map(f => `- \`${f}\``),
+              ].join('\n');
+            } else if (results.length === 0) {
+              body = '### Blog publish\n\nThe publish step did not run — check the workflow log.';
+            } else {
+              const ok = results.filter(r => r.ok);
+              const bad = results.filter(r => !r.ok);
+              body = [
+                bad.length ? '### Blog publish — failed' : '### Blog publish',
+                '',
+                ...ok.map(r => `✓ Published: ${r.url} _(${r.action})_`),
+                ...bad.map(r => `✗ \`${r.file}\`\n\`\`\`\n${r.error}\n\`\`\``),
+              ].join('\n');
+            }
+
+            // A push to a branch with no pull request has nothing to comment
+            // on, so the result goes on the commit instead.
+            const pr = context.payload.pull_request?.number
+              ?? (await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                   ...context.repo, commit_sha: context.sha,
+                 })).data[0]?.number;
+
+            if (pr) {
+              await github.rest.issues.createComment({
+                ...context.repo, issue_number: pr, body,
+              });
+            } else {
+              await github.rest.repos.createCommitComment({
+                ...context.repo, commit_sha: context.sha, body,
+              });
+            }
+
+            core.summary.addRaw(body).write();
