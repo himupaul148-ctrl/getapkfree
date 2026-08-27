@@ -186,7 +186,10 @@ async function main() {
   const dryRun = process.env.DRY_RUN === "1";
   const siteUrl = (process.env.SITE_URL ?? "https://getapkfree.vercel.app")
     .replace(/\/$/, "");
-  const token = process.env.BLOG_PUBLISH_TOKEN ?? "";
+  // Trimmed for the same reason the server trims: a secret pasted into the
+  // GitHub box can carry a trailing newline, and the resulting 401 looks
+  // exactly like a wrong token.
+  const token = (process.env.BLOG_PUBLISH_TOKEN ?? "").trim();
 
   if (!dryRun && !token) {
     console.error(

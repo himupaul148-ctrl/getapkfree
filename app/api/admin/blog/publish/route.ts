@@ -27,14 +27,35 @@ export const dynamic = "force-dynamic";
 const DESCRIPTION_MAX = 200; // matches the blog_posts check constraint
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-/** Constant-time compare so the token cannot be recovered a byte at a time. */
+/**
+ * Constant-time compare so the token cannot be recovered a byte at a time.
+ *
+ * Both sides are trimmed first. Pasting a value into the Vercel or GitHub
+ * secret box very easily carries a trailing space or newline, and the failure
+ * that produces is maddening: both dashboards show the variable as set, the
+ * values look identical, and every request 401s. Whitespace is never
+ * meaningful in a token, so stripping it costs nothing and removes the whole
+ * class of problem.
+ */
 function tokenMatches(provided: string, expected: string): boolean {
-  const a = Buffer.from(provided);
-  const b = Buffer.from(expected);
-  // timingSafeEqual throws on a length mismatch, which would itself leak the
-  // length, so compare a fixed-size digest of each instead.
+  const a = Buffer.from(provided.trim());
+  const b = Buffer.from(expected.trim());
+  // timingSafeEqual throws when the lengths differ, so that case is handled
+  // before calling it. The length of a rejected guess is not worth protecting.
   if (a.length !== b.length) return false;
   return timingSafeEqual(a, b);
+}
+
+/**
+ * Pulls the credential out of an Authorization header.
+ *
+ * RFC 7235 makes the scheme case-insensitive, so "bearer" must work as well as
+ * "Bearer", and any amount of whitespace may separate the two.
+ */
+function bearerToken(header: string | null): string {
+  if (!header) return "";
+  const match = header.match(/^\s*Bearer\s+(.+)\s*$/i);
+  return match ? match[1].trim() : "";
 }
 
 type Body = Record<string, unknown>;
@@ -52,8 +73,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const header = request.headers.get("authorization") ?? "";
-  const provided = header.startsWith("Bearer ") ? header.slice(7) : "";
+  const provided = bearerToken(request.headers.get("authorization"));
   if (!provided || !tokenMatches(provided, expected)) {
     return NextResponse.json({ error: "Not authorised." }, { status: 401 });
   }
