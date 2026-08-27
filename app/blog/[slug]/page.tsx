@@ -85,7 +85,11 @@ export default async function BlogPostPage({ params }: Props) {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
       <BlogJsonLd post={post} />
-      <BlogViewCounter slug={post.slug} />
+      <BlogViewCounter
+        slug={post.slug}
+        title={post.title}
+        category={post.category}
+      />
 
       <Link
         href="/blog"

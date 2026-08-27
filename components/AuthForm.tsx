@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { track } from "@/lib/gtag";
 
 type Mode = "login" | "signup";
 
@@ -74,6 +75,11 @@ export default function AuthForm({
         },
       });
       if (error) throw error;
+
+      // Fires whether or not a session came back: the account exists either
+      // way, and waiting for confirmation would undercount every signup that
+      // needs an email click.
+      track("user_signup", { signup_method: "email" });
 
       // With email confirmation on, signUp returns no session.
       if (data.session) {

@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/client";
 export type SessionProfile = {
   username: string | null;
   isAdmin: boolean;
+  /** Supabase user UUID. Opaque, and the only identifier analytics sees. */
+  userId: string | null;
 };
 
 /**
@@ -24,6 +26,7 @@ export function useSessionProfile(): SessionProfile & { loading: boolean } {
   const [profile, setProfile] = useState<SessionProfile>({
     username: null,
     isAdmin: false,
+    userId: null,
   });
   const [loading, setLoading] = useState(true);
 
@@ -34,7 +37,7 @@ export function useSessionProfile(): SessionProfile & { loading: boolean } {
     async function load(userId: string | undefined, metaName: unknown) {
       if (!userId) {
         if (active) {
-          setProfile({ username: null, isAdmin: false });
+          setProfile({ username: null, isAdmin: false, userId: null });
           setLoading(false);
         }
         return;
@@ -56,6 +59,7 @@ export function useSessionProfile(): SessionProfile & { loading: boolean } {
       setProfile({
         username: data?.username ?? (typeof metaName === "string" ? metaName : null),
         isAdmin: data?.is_admin ?? false,
+        userId,
       });
       setLoading(false);
     }

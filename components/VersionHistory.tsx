@@ -4,7 +4,16 @@ import DownloadButton from "@/components/DownloadButton";
 import { formatBytes, formatDate } from "@/lib/format";
 import type { Version } from "@/lib/types";
 
-export default function VersionHistory({ versions }: { versions: Version[] }) {
+export default function VersionHistory({
+  versions,
+  appName,
+  appCategory = null,
+}: {
+  versions: Version[];
+  /** Analytics only, threaded through to the per-build download links. */
+  appName?: string;
+  appCategory?: string | null;
+}) {
   return (
     <Disclosure
       title="Version history"
@@ -66,6 +75,8 @@ export default function VersionHistory({ versions }: { versions: Version[] }) {
                 versionName={build.version_name}
                 fileUrl={build.file_url}
                 variant="link"
+                appName={appName}
+                appCategory={appCategory}
               />
             </li>
           ))}

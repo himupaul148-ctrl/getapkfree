@@ -7,10 +7,10 @@
  * corresponding env var is set in Vercel.
  */
 
-export const GA_ID = process.env.NEXT_PUBLIC_GA_ID ?? "";
+export const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? "";
 export const ADSENSE_CLIENT = process.env.NEXT_PUBLIC_ADSENSE_CLIENT ?? "";
 
-export const analyticsEnabled = GA_ID.length > 0;
+export const analyticsEnabled = GA_MEASUREMENT_ID.length > 0;
 export const adsEnabled = ADSENSE_CLIENT.length > 0;
 
 /** Where privacy and abuse reports go. */

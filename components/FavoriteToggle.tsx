@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useFavorites } from "@/components/FavoritesProvider";
+import { track } from "@/lib/gtag";
 
 /**
  * Heart toggle used on cards and on the detail page. State comes from
@@ -34,6 +35,12 @@ export default function FavoriteToggle({
     setPending(true);
     const result = await toggle(appId);
     setPending(false);
+
+    // "added" only: the provider returns "failed" when the write was rolled
+    // back, and un-favouriting is not the signal we are after.
+    if (result === "added") {
+      track("app_favorited", { app_name: appName, app_id: appId });
+    }
 
     if (result === "signin-required") {
       setPrompt(true);

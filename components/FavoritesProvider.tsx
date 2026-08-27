@@ -14,7 +14,7 @@ type FavoritesValue = {
   signedIn: boolean;
   ready: boolean;
   isFavorite: (appId: string) => boolean;
-  toggle: (appId: string) => Promise<"added" | "removed" | "signin-required">;
+  toggle: (appId: string) => Promise<"added" | "removed" | "signin-required" | "failed">;
 };
 
 const FavoritesContext = createContext<FavoritesValue | null>(null);
@@ -81,7 +81,9 @@ export default function FavoritesProvider({
   }, []);
 
   const toggle = useCallback(
-    async (appId: string): Promise<"added" | "removed" | "signin-required"> => {
+    async (
+      appId: string,
+    ): Promise<"added" | "removed" | "signin-required" | "failed"> => {
       const supabase = createClient();
       const {
         data: { user },
@@ -118,6 +120,9 @@ export default function FavoritesProvider({
           else next.add(appId);
           return next;
         });
+        // Distinct from "added"/"removed": the optimistic flip has been undone,
+        // so a caller must not treat this as a completed change.
+        return "failed";
       }
 
       return adding ? "added" : "removed";

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { track } from "@/lib/gtag";
 
 /**
  * Records the download, then follows the link. The insert is allowed for
@@ -20,6 +21,8 @@ export default function DownloadButton({
   fileUrl,
   variant = "primary",
   external = false,
+  appName,
+  appCategory = null,
   children,
 }: {
   versionId: string;
@@ -27,6 +30,9 @@ export default function DownloadButton({
   fileUrl: string | null;
   variant?: "primary" | "link";
   external?: boolean;
+  /** Analytics only — the download itself does not need them. */
+  appName?: string;
+  appCategory?: string | null;
   children?: React.ReactNode;
 }) {
   const router = useRouter();
@@ -46,6 +52,14 @@ export default function DownloadButton({
     await supabase
       .from("downloads")
       .insert({ version_id: versionId, user_id: user?.id ?? null });
+
+    if (appName) {
+      track("app_download", {
+        app_name: appName,
+        app_category: appCategory,
+        version: versionName || null,
+      });
+    }
 
     router.refresh(); // pick up the new download count
     setPending(false);

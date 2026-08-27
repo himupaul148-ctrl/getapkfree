@@ -6,9 +6,11 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type { SortKey, SourceFilter } from "@/lib/types";
+import { track } from "@/lib/gtag";
 
 export type Filters = {
   search: string;
@@ -70,6 +72,32 @@ export default function FilterProvider({
     const qs = params.toString();
     window.history.replaceState(window.history.state, "", qs ? `/?${qs}` : "/");
   }, [search, category, android, sort, source]);
+
+  /*
+   * One event per filter dimension that actually changed. The mount pass is
+   * skipped so arriving on a shared /?category=Games link does not report a
+   * filter the visitor never applied, and empty values are skipped so
+   * *clearing* a filter is not counted as applying one.
+   */
+  const previous = useRef({ category, android, sort, source });
+  const mounted = useRef(false);
+
+  useEffect(() => {
+    if (!mounted.current) {
+      mounted.current = true;
+      previous.current = { category, android, sort, source };
+      return;
+    }
+
+    const now = { category, android, sort, source };
+    for (const key of ["category", "android", "sort", "source"] as const) {
+      const value = now[key];
+      if (value === previous.current[key]) continue;
+      if (!value || value === "all") continue;
+      track("filter_applied", { filter_type: key, filter_value: String(value) });
+    }
+    previous.current = now;
+  }, [category, android, sort, source]);
 
   const toggleCategory = useCallback((value: string) => {
     // Tapping the selected card again clears it, so the cards work as a filter

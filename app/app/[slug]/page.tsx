@@ -192,6 +192,8 @@ export default async function AppDetailPage({ params }: Props) {
               app.source_type === "external" ? app.external_url : latest.file_url
             }
             external={app.source_type === "external"}
+            appName={app.name}
+            appCategory={app.category}
           >
             {app.source_type === "external"
               ? downloadSourceLabel(app.source_type, app.external_url)
@@ -244,7 +246,11 @@ export default async function AppDetailPage({ params }: Props) {
       />
 
       {/* ---- Version history (collapsed) ---- */}
-      <VersionHistory versions={versions} />
+      <VersionHistory
+        versions={versions}
+        appName={app.name}
+        appCategory={app.category}
+      />
 
       <p className="mt-6 rounded-2xl border border-base-800 bg-base-900 p-5 text-sm text-fg-muted">
         New to sideloading?{" "}

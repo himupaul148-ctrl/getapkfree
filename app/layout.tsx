@@ -1,8 +1,10 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import SiteHeader from "@/components/SiteHeader";
 import FavoritesProvider from "@/components/FavoritesProvider";
 import SiteFooter from "@/components/SiteFooter";
 import { AdSense, Analytics } from "@/components/Analytics";
+import PageViewTracker from "@/components/PageViewTracker";
 import ThemeScript from "@/components/ThemeScript";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/seo";
 import "./globals.css";
@@ -77,6 +79,11 @@ export default function RootLayout({
             without them ships no third-party script at all. */}
         <Analytics />
         <AdSense />
+        {/* useSearchParams() inside would otherwise pull the whole tree into
+            client rendering and cost the static shell. */}
+        <Suspense fallback={null}>
+          <PageViewTracker />
+        </Suspense>
       </body>
     </html>
   );

@@ -25,6 +25,17 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<publishable key>
 The API URL is the project's `*.supabase.co` host — not the
 `supabase.com/dashboard/project/...` URL shown in the dashboard address bar.
 
+Optional, and inert until set:
+
+```
+NEXT_PUBLIC_GA_MEASUREMENT_ID=G-XXXXXXXXXX   # see docs/analytics.md
+NEXT_PUBLIC_ADSENSE_CLIENT=ca-pub-XXXXXXXXXXXXXXXX
+RESEND_API_KEY=re_xxx                        # contact form email
+```
+
+With no measurement ID, no Google script is loaded at all — see
+[docs/analytics.md](docs/analytics.md) for the event list and how to verify it.
+
 ## Supabase clients
 
 Three entry points, deliberately separate:

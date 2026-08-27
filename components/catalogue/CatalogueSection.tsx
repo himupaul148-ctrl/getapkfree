@@ -6,6 +6,7 @@ import AppCard from "@/components/AppCard";
 import FilterControls from "@/components/catalogue/FilterControls";
 import { useFilters } from "@/components/catalogue/FilterProvider";
 import { androidLevel, trendingScore } from "@/lib/format";
+import { track } from "@/lib/gtag";
 import type { AppSummary } from "@/lib/types";
 
 const MAX_SUGGESTIONS = 6;
@@ -128,6 +129,26 @@ export default function CatalogueSection({ apps }: { apps: AppSummary[] }) {
   useEffect(() => {
     setVisible(PAGE_SIZE);
   }, [needle, category, android, sort, source]);
+
+  /*
+   * Search is reported once the query settles, not per keystroke — typing
+   * "browser" would otherwise send seven events and make the report useless.
+   * results_count is read from a ref so a later re-render cannot re-fire this
+   * effect with a stale count.
+   */
+  const resultsRef = useRef(results.length);
+  resultsRef.current = results.length;
+
+  useEffect(() => {
+    if (!needle) return;
+    const timer = setTimeout(() => {
+      track("app_search", {
+        search_query: needle,
+        results_count: resultsRef.current,
+      });
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [needle]);
 
   function onSearchKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
     if (!openSuggestions || suggestions.length === 0) return;

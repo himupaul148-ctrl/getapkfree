@@ -70,6 +70,7 @@ export default function DownloadsPanel({ rows }: { rows: DownloadRow[] }) {
                   versionName={row.versionName ?? ""}
                   fileUrl={row.fileUrl}
                   variant="link"
+                  appName={row.appName ?? undefined}
                 >
                   Re-download
                 </DownloadButton>

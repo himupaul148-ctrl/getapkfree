@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { track } from "@/lib/gtag";
 
 /**
  * Bumps view_count once per mount.
@@ -15,11 +16,21 @@ import { createClient } from "@/lib/supabase/client";
  * effect keys on the slug and the RPC is cheap and idempotent enough that a
  * duplicate in development does not matter.
  */
-export default function BlogViewCounter({ slug }: { slug: string }) {
+export default function BlogViewCounter({
+  slug,
+  title,
+  category,
+}: {
+  slug: string;
+  title: string;
+  category: string;
+}) {
   useEffect(() => {
     let cancelled = false;
     const timer = setTimeout(() => {
       if (cancelled) return;
+      track("blog_post_view", { post_title: title, post_category: category });
+
       // Fire and forget: a failed counter must never surface to a reader.
       void createClient()
         .rpc("increment_blog_view", { post_slug: slug })
@@ -30,7 +41,7 @@ export default function BlogViewCounter({ slug }: { slug: string }) {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [slug]);
+  }, [slug, title, category]);
 
   return null;
 }
