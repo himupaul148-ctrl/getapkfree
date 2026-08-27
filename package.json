@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "import-fdroid": "node --env-file=.env.local scripts/import-fdroid.mjs",
-    "backfill-media": "node --env-file=.env.local scripts/backfill-media.mjs"
+    "backfill-media": "node --env-file=.env.local scripts/backfill-media.mjs",
+    "deploy-workflow": "bash scripts/deploy-workflow.sh"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.5",
