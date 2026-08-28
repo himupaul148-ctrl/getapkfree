@@ -34,7 +34,8 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
-    const { title, description, content, slug, category } = body;
+    const { title, description, content, slug, category, published } = body;
+    const isPublished = published === true;
 
     // Validate required fields
     if (!title || !description || !slug || !category) {
@@ -69,20 +70,28 @@ export async function POST(request: NextRequest) {
     let result;
 
     if (existingPost) {
-      // Update existing post
+      // Update existing post. Only touch `published` if the caller
+      // explicitly sent it, so re-running an update on a live post
+      // doesn't silently unpublish it.
+      const updatePayload: Record<string, unknown> = {
+        title,
+        description,
+        content,
+        category,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (published !== undefined) {
+        updatePayload.published = isPublished;
+      }
+
       result = await supabase
         .from('blog_posts')
-        .update({
-          title,
-          description,
-          content,
-          category,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updatePayload)
         .eq('id', existingPost.id)
         .select();
     } else {
-      // Insert new post
+      // Insert new post — drafts by default unless published: true is sent
       result = await supabase
         .from('blog_posts')
         .insert({
@@ -91,6 +100,7 @@ export async function POST(request: NextRequest) {
           content,
           slug,
           category,
+          published: isPublished,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
@@ -108,11 +118,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const post = result.data?.[0];
+
     return NextResponse.json(
       {
         success: true,
         message: existingPost ? 'Blog post updated' : 'Blog post created',
-        post: result.data?.[0],
+        status: post?.published ? 'published' : 'draft',
+        post,
       },
       { status: existingPost ? 200 : 201 }
     );
