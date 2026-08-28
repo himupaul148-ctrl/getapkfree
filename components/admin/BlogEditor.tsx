@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import ImageField from "@/components/admin/ImageField";
+import FeaturedImageUploader from "@/components/admin/FeaturedImageUploader";
 import MarkdownEditor from "@/components/admin/MarkdownEditor";
 import RelatedAppPicker, {
   type PickerApp,
@@ -272,14 +272,10 @@ export default function BlogEditor({
         </div>
 
         <div className="sm:col-span-2">
-          <ImageField
-            label="Featured image"
+          <FeaturedImageUploader
+            slug={effectiveSlug}
             value={image}
             onChange={setImage}
-            slug={effectiveSlug || "post"}
-            kind="cover"
-            bucket="blog-images"
-            hint="Shown on the card and as the hero. 16:9 works best."
           />
         </div>
 
