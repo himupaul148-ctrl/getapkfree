@@ -34,14 +34,14 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
-    const { title, description, content, slug } = body;
+    const { title, description, content, slug, category } = body;
 
     // Validate required fields
-    if (!title || !description || !slug) {
+    if (!title || !description || !slug || !category) {
       return NextResponse.json(
         {
           error: 'Missing required fields',
-          required: ['title', 'description', 'slug'],
+          required: ['title', 'description', 'slug', 'category'],
           received: Object.keys(body),
         },
         { status: 400 }
@@ -76,6 +76,7 @@ export async function POST(request: NextRequest) {
           title,
           description,
           content,
+          category,
           updated_at: new Date().toISOString(),
         })
         .eq('id', existingPost.id)
@@ -89,6 +90,7 @@ export async function POST(request: NextRequest) {
           description,
           content,
           slug,
+          category,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
