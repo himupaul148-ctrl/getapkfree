@@ -3,7 +3,7 @@
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { clearUserId, setUserId, trackPageView } from "@/lib/gtag";
-import { useSessionProfile } from "@/lib/useSessionProfile";
+import { useSession } from "@/components/SessionProvider";
 
 /**
  * Page views on client-side navigation, plus User-ID for signed-in visitors.
@@ -19,7 +19,7 @@ import { useSessionProfile } from "@/lib/useSessionProfile";
 export default function PageViewTracker() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { userId } = useSessionProfile();
+  const { userId } = useSession();
 
   // The first page view is already sent by gtag('config', …) in the tag
   // itself, so sending one on mount would double-count every landing.

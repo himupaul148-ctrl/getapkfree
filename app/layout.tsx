@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import SiteHeader from "@/components/SiteHeader";
 import FavoritesProvider from "@/components/FavoritesProvider";
+import SessionProvider from "@/components/SessionProvider";
 import SiteFooter from "@/components/SiteFooter";
 import { AdSense, Analytics } from "@/components/Analytics";
 import PageViewTracker from "@/components/PageViewTracker";
@@ -67,23 +68,27 @@ export default function RootLayout({
         >
           Skip to content
         </a>
-        <FavoritesProvider>
-          <SiteHeader />
-          <main id="main" className="flex-1">
-            {children}
-          </main>
-          <SiteFooter />
-        </FavoritesProvider>
+        {/* PageViewTracker reads the session for GA4's User-ID, so it has to
+            sit inside the provider too. */}
+        <SessionProvider>
+          <FavoritesProvider>
+            <SiteHeader />
+            <main id="main" className="flex-1">
+              {children}
+            </main>
+            <SiteFooter />
+          </FavoritesProvider>
 
-        {/* Both render null unless their env var is set, so a deployment
-            without them ships no third-party script at all. */}
-        <Analytics />
-        <AdSense />
-        {/* useSearchParams() inside would otherwise pull the whole tree into
-            client rendering and cost the static shell. */}
-        <Suspense fallback={null}>
-          <PageViewTracker />
-        </Suspense>
+          {/* Both render null unless their env var is set, so a deployment
+              without them ships no third-party script at all. */}
+          <Analytics />
+          <AdSense />
+          {/* useSearchParams() inside would otherwise pull the whole tree into
+              client rendering and cost the static shell. */}
+          <Suspense fallback={null}>
+            <PageViewTracker />
+          </Suspense>
+        </SessionProvider>
       </body>
     </html>
   );

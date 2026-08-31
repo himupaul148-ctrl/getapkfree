@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Logo from "@/components/Logo";
 import UserMenu from "@/components/UserMenu";
-import { useSessionProfile } from "@/lib/useSessionProfile";
+import { useSession } from "@/components/SessionProvider";
+import ModeBadge from "@/components/ModeBadge";
 
 const NAV = [
   { href: "/#categories", label: "Categories" },
@@ -16,7 +17,11 @@ const NAV = [
 
 export default function SiteHeader() {
   // Read client-side so the root layout stays static and CDN-cacheable.
-  const { username, isAdmin, loading } = useSessionProfile();
+  const session = useSession();
+  const { username } = session;
+  const isAdmin = session.status === "admin";
+  // "unknown" is a real state now: still checking, or a check that failed.
+  const loading = session.status === "unknown" && !session.expired && !session.error;
   const router = useRouter();
   const [term, setTerm] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -74,8 +79,16 @@ export default function SiteHeader() {
               aria-hidden="true"
               className="hidden h-9 w-24 animate-pulse rounded-xl bg-base-850 sm:block"
             />
-          ) : username ? (
-            <UserMenu username={username} isAdmin={isAdmin} />
+            ) : username || session.expired || session.error ? (
+              <>
+                {/* Always on screen once there is anything to say,
+                    including on mobile — you should never be in admin
+                    mode without seeing it. */}
+                <ModeBadge />
+                {username && (
+                  <UserMenu username={username} isAdmin={isAdmin} />
+                )}
+              </>
           ) : (
             <>
               <Link

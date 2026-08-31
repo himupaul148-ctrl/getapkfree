@@ -1,5 +1,15 @@
+import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+
+/** Constant-time, trimmed comparison. Lengths differ -> reject before the
+ *  timingSafeEqual call, which throws on a length mismatch. */
+function tokenMatches(provided: string, expected: string): boolean {
+  const a = Buffer.from(provided.trim());
+  const b = Buffer.from(expected.trim());
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,9 +33,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check authorization header
+    // Check authorization header.
+    //
+    // Three things the previous `authHeader !== \`Bearer ${token}\`` got wrong:
+    // it compared in variable time, which leaks the token a byte at a time to
+    // a patient attacker; it was case-sensitive on the scheme, though RFC 7235
+    // makes it case-insensitive; and it compared untrimmed, so a value pasted
+    // into a secrets box with a trailing newline failed while looking
+    // identical in both dashboards.
     const authHeader = request.headers.get('authorization');
-    if (!authHeader || authHeader !== `Bearer ${publishToken}`) {
+    const match = authHeader?.match(/^\s*Bearer\s+(.+)\s*$/i);
+    if (!match || !tokenMatches(match[1], publishToken)) {
       return NextResponse.json(
         { error: 'Unauthorized: Invalid or missing token' },
         { status: 401 }
