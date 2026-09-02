@@ -7,6 +7,7 @@ import FilterControls from "@/components/catalogue/FilterControls";
 import { useFilters } from "@/components/catalogue/FilterProvider";
 import { androidLevel, trendingScore } from "@/lib/format";
 import { track } from "@/lib/gtag";
+import { clearVisible, readVisible, writeVisible } from "@/lib/restore-count";
 import type { AppSummary } from "@/lib/types";
 
 const MAX_SUGGESTIONS = 6;
@@ -47,7 +48,9 @@ export default function CatalogueSection({ apps }: { apps: AppSummary[] }) {
   const [openSuggestions, setOpenSuggestions] = useState(false);
   const [highlighted, setHighlighted] = useState(-1);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [visible, setVisible] = useState(PAGE_SIZE);
+  // Lazy initialiser, not an effect: restoring in an effect would paint 24
+  // cards and then jump to 96, which is worse than not restoring at all.
+  const [visible, setVisible] = useState(() => readVisible(PAGE_SIZE));
   const searchRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -125,10 +128,25 @@ export default function CatalogueSection({ apps }: { apps: AppSummary[] }) {
     return sorted;
   }, [apps, needle, category, android, sort, source]);
 
-  // A new filter means a new result set; start again from the first page.
+  /*
+   * A new filter means a new result set, so the remembered count no longer
+   * applies. The mount pass is skipped — otherwise arriving on a restored
+   * history entry would immediately throw away the count we just restored.
+   */
+  const filtersSettled = useRef(false);
   useEffect(() => {
+    if (!filtersSettled.current) {
+      filtersSettled.current = true;
+      return;
+    }
+    clearVisible();
     setVisible(PAGE_SIZE);
   }, [needle, category, android, sort, source]);
+
+  // Persist whatever is on screen so a back navigation can restore it.
+  useEffect(() => {
+    writeVisible(visible);
+  }, [visible]);
 
   /*
    * Search is reported once the query settles, not per keystroke — typing

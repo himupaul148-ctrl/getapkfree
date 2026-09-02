@@ -9,6 +9,13 @@ import {
   useRef,
   useState,
 } from "react";
+import { useSearchParams } from "next/navigation";
+import {
+  normaliseAndroid,
+  normaliseCategory,
+  normaliseSort,
+  normaliseSource,
+} from "@/lib/filters";
 import type { SortKey, SourceFilter } from "@/lib/types";
 import { track } from "@/lib/gtag";
 
@@ -52,16 +59,49 @@ export default function FilterProvider({
   initial: Filters;
   children: React.ReactNode;
 }) {
-  const [search, setSearch] = useState(initial.search);
-  const [category, setCategory] = useState(initial.category);
-  const [android, setAndroid] = useState(initial.android);
-  const [sort, setSort] = useState<SortKey>(initial.sort);
-  const [source, setSource] = useState<SourceFilter>(initial.source);
+  /*
+   * Seed from the live URL, falling back to what the server passed.
+   *
+   * On a back navigation the router restores the entry's URL — including the
+   * params replaceState wrote — but `initial` still carries the payload the
+   * server rendered for the unfiltered page. Reading searchParams here is what
+   * makes a filtered view survive going back to it.
+   */
+  const params = useSearchParams();
+  const seed = <T,>(key: string, fallback: T, parse: (raw: string) => T): T => {
+    const raw = params.get(key);
+    return raw === null ? fallback : parse(raw);
+  };
 
-  // Mirror the state into the URL so a filtered view can be bookmarked or
-  // shared. replaceState keeps this out of the back-history (typing would
-  // otherwise create an entry per keystroke) and preserves the App Router's
-  // own history state — passing null there breaks later router.push() calls.
+  const [search, setSearch] = useState(() =>
+    seed("search", initial.search, (v) => v),
+  );
+  const [category, setCategory] = useState(() =>
+    seed("category", initial.category, normaliseCategory),
+  );
+  const [android, setAndroid] = useState(() =>
+    seed("android", initial.android, normaliseAndroid),
+  );
+  const [sort, setSort] = useState<SortKey>(() =>
+    seed("sort", initial.sort, normaliseSort),
+  );
+  const [source, setSource] = useState<SourceFilter>(() =>
+    seed("source", initial.source, normaliseSource),
+  );
+
+  /*
+   * Mirror the state into the URL so a filtered view can be bookmarked or
+   * shared. replaceState rather than pushState keeps this out of the
+   * back-history — typing would otherwise create an entry per keystroke.
+   *
+   * The state argument must be `null`. Next patches replaceState and attaches
+   * its own router state; handing it back the *current* entry's state made it
+   * re-assert a stale tree, after which the router treated the next real
+   * navigation as a replace instead of a push. The visible result was that
+   * clicking an app card from a filtered homepage created no history entry at
+   * all, so the back button on /app/[slug] had nowhere to go and appeared
+   * dead. `null` is what the Next docs prescribe, and it is load-bearing.
+   */
   useEffect(() => {
     const params = new URLSearchParams();
     if (search.trim()) params.set("search", search.trim());
@@ -70,7 +110,7 @@ export default function FilterProvider({
     if (sort !== "trending") params.set("sort", sort);
     if (source !== "all") params.set("source", source);
     const qs = params.toString();
-    window.history.replaceState(window.history.state, "", qs ? `/?${qs}` : "/");
+    window.history.replaceState(null, "", qs ? `/?${qs}` : "/");
   }, [search, category, android, sort, source]);
 
   /*

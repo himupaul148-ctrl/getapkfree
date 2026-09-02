@@ -29,17 +29,26 @@ export default function BlogFilters({
     setCategory(initialCategory);
   }, [initialQuery, initialCategory]);
 
-  function push(nextQuery: string, nextCategory: string) {
+  /*
+   * `mode` is the whole point here. Typing used to push one entry per
+   * debounce, so searching "privacy" left five near-identical /blog?q=... in
+   * the history and backing out of a post walked through all of them looking
+   * like the button was dead. A search is one continuous act, so it replaces;
+   * choosing a category is a deliberate step worth returning to, so it pushes.
+   */
+  function go(nextQuery: string, nextCategory: string, mode: "push" | "replace") {
     const params = new URLSearchParams();
     if (nextQuery.trim()) params.set("q", nextQuery.trim());
     if (nextCategory) params.set("category", nextCategory);
     const qs = params.toString();
-    router.push(qs ? `/blog?${qs}` : "/blog");
+    const url = qs ? `/blog?${qs}` : "/blog";
+    if (mode === "push") router.push(url);
+    else router.replace(url);
   }
 
   useEffect(() => {
     if (query === initialQuery) return;
-    const timer = setTimeout(() => push(query, category), 350);
+    const timer = setTimeout(() => go(query, category, "replace"), 350);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
@@ -69,7 +78,7 @@ export default function BlogFilters({
           value={category}
           onChange={(e) => {
             setCategory(e.target.value);
-            push(query, e.target.value);
+            go(query, e.target.value, "push");
           }}
           className="w-full rounded-xl border border-base-700 bg-base-900 px-4 py-3 text-sm outline-none focus:border-brand-500 sm:w-52"
         >
