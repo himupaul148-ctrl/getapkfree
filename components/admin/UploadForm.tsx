@@ -224,6 +224,16 @@ export default function UploadForm() {
 
       if (versionError) throw versionError;
 
+      // The catalogue is cached for an hour; drop it so the new build shows up
+      // straight away rather than whenever the window happens to lapse.
+      await fetch("/api/admin/revalidate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug }),
+      }).catch(() => {
+        /* the build is saved either way; a stale list is not worth failing on */
+      });
+
       setSuccess({ slug: slug!, name: name.trim() });
       setNotice(null);
       router.refresh();

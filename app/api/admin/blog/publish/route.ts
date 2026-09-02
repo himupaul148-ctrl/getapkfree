@@ -1,4 +1,5 @@
 import { timingSafeEqual } from 'node:crypto';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -137,6 +138,27 @@ export async function POST(request: NextRequest) {
     }
 
     const post = result.data?.[0];
+
+    /*
+     * Drop the caches this write invalidates.
+     *
+     * `getPublishedPosts` is wrapped in unstable_cache with a one-hour window
+     * and the post pages are ISR, so without this a post pushed from
+     * blog-posts/ stays invisible until the window lapses — which reads as a
+     * broken pipeline rather than a cold cache.
+     *
+     * This route cannot call /api/admin/revalidate the way the admin
+     * components do: that endpoint authorises on an admin session cookie, and
+     * the Actions runner authenticates with a bearer token instead. So it
+     * invalidates directly.
+     *
+     * Runs for drafts too — a post flipped from published back to draft has to
+     * leave the listing just as promptly as it joined it.
+     */
+    revalidateTag('blog', 'max');
+    revalidatePath('/blog');
+    revalidatePath(`/blog/${slug}`);
+    revalidatePath('/sitemap.xml');
 
     return NextResponse.json(
       {

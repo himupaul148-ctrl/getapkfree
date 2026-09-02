@@ -66,6 +66,22 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
     [apps, needle, status],
   );
 
+  /**
+   * The catalogue is cached for an hour and the detail page is ISR, so a
+   * publish, unpublish or delete is invisible to visitors until both are
+   * dropped — a deleted app would otherwise keep serving a 200 from the edge.
+   * Never allowed to fail the action: the write has already landed.
+   */
+  async function revalidate(slug: string) {
+    await fetch("/api/admin/revalidate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slug }),
+    }).catch(() => {
+      /* a stale list is not worth failing a completed write on */
+    });
+  }
+
   /** Unpublishing every build is what removes an app from the public site. */
   async function setPublished(app: ManagedApp, published: boolean) {
     setError(null);
@@ -80,6 +96,7 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
       setError(updateError.message);
       return;
     }
+    await revalidate(app.slug);
     router.refresh();
   }
 
@@ -98,6 +115,7 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
       setError(deleteError.message);
       return;
     }
+    await revalidate(app.slug);
     router.refresh();
   }
 
