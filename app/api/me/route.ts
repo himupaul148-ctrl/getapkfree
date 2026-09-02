@@ -36,6 +36,37 @@ export async function GET() {
     .eq("id", user.id)
     .maybeSingle<{ username: string | null }>();
 
+  /*
+   * Draft counts ride along on this response rather than getting an endpoint
+   * of their own.
+   *
+   * SessionProvider already calls /api/me on mount and again when the tab
+   * regains focus, so this costs zero additional client requests and refreshes
+   * itself at exactly the moments an admin would look at it. Polling a
+   * separate endpoint would mean a request per interval per open tab, for a
+   * number that changes a few times a day.
+   *
+   * Only computed for admins — a regular user's response is byte-identical to
+   * what it was before, so the bar leaves no trace in it.
+   */
+  let drafts: { posts: number; builds: number } | null = null;
+
+  if (admin) {
+    // head:true — count only, no rows over the wire.
+    const [postsRes, buildsRes] = await Promise.all([
+      supabase
+        .from("blog_posts")
+        .select("id", { count: "exact", head: true })
+        .eq("published", false),
+      supabase
+        .from("versions")
+        .select("id", { count: "exact", head: true })
+        .eq("published", false),
+    ]);
+
+    drafts = { posts: postsRes.count ?? 0, builds: buildsRes.count ?? 0 };
+  }
+
   return NextResponse.json(
     {
       signedIn: true,
@@ -46,6 +77,7 @@ export async function GET() {
           ? user.user_metadata.username
           : null),
       userId: user.id,
+      ...(drafts ? { drafts } : {}),
     },
     { headers: { "Cache-Control": "private, no-store" } },
   );

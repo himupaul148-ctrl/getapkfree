@@ -7,6 +7,7 @@ import Logo from "@/components/Logo";
 import UserMenu from "@/components/UserMenu";
 import { useSession } from "@/components/SessionProvider";
 import ModeBadge from "@/components/ModeBadge";
+import AdminBar from "@/components/AdminBar";
 
 const NAV = [
   { href: "/#categories", label: "Categories" },
@@ -34,6 +35,8 @@ export default function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-30 border-b border-base-800 bg-base-950/90 backdrop-blur">
+      {/* Renders null for everyone who is not a server-confirmed admin. */}
+      <AdminBar />
       <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 sm:px-6">
         <Link href="/" className="shrink-0">
           <Logo />

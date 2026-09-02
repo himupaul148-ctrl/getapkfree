@@ -24,6 +24,7 @@ const ADMIN: SessionSnapshot = {
   userId: "user-1",
   error: null,
   expired: false,
+  drafts: { posts: 3, builds: 1 },
 };
 
 group("the race condition", () => {
@@ -139,5 +140,40 @@ group("labels", () => {
   test("admin and user are unambiguous", () => {
     assert.equal(describe(ADMIN).label, "Admin");
     assert.equal(describe({ ...ADMIN, status: "user" }).label, "Signed in");
+  });
+});
+
+group("draft counts never leak to a non-admin", () => {
+  test("counts are dropped when the server says you are not an admin", () => {
+    // The payload is deliberately hostile: a `drafts` object alongside
+    // `isAdmin: false`. The reducer must side with `isAdmin`.
+    const state = reduce(ADMIN, {
+      type: "resolved",
+      userId: "user-2",
+      username: "someone-else",
+      isAdmin: false,
+      drafts: { posts: 9, builds: 9 },
+    });
+
+    assert.equal(state.status, "user");
+    assert.equal(state.drafts, null, "a non-admin must never carry counts");
+  });
+
+  test("signing out clears the counts with the session", () => {
+    assert.equal(reduce(ADMIN, { type: "anonymous" }).drafts, null);
+    assert.equal(reduce(ADMIN, { type: "expired" }).drafts, null);
+  });
+
+  test("an admin keeps their counts", () => {
+    const state = reduce(INITIAL, {
+      type: "resolved",
+      userId: "user-1",
+      username: "himu",
+      isAdmin: true,
+      drafts: { posts: 2, builds: 31 },
+    });
+
+    assert.equal(state.status, "admin");
+    assert.deepEqual(state.drafts, { posts: 2, builds: 31 });
   });
 });

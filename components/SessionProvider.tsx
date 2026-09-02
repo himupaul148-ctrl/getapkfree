@@ -83,6 +83,7 @@ export default function SessionProvider({
                 userId: body.userId as string,
                 username: (body.username as string | null) ?? null,
                 isAdmin: body.isAdmin === true,
+                drafts: body.drafts ?? null,
               }
             : {}),
         } as never),

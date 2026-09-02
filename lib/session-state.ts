@@ -19,6 +19,9 @@
 
 export type AdminStatus = "admin" | "user" | "unknown";
 
+/** Counts shown in the admin bar. Null for anyone who is not an admin. */
+export type DraftCounts = { posts: number; builds: number };
+
 export type SessionSnapshot = {
   status: AdminStatus;
   username: string | null;
@@ -27,6 +30,8 @@ export type SessionSnapshot = {
   error: string | null;
   /** True once the session is known to have ended, as opposed to never existing. */
   expired: boolean;
+  /** Only ever populated for a server-confirmed admin. */
+  drafts: DraftCounts | null;
 };
 
 export const INITIAL: SessionSnapshot = {
@@ -35,11 +40,18 @@ export const INITIAL: SessionSnapshot = {
   userId: null,
   error: null,
   expired: false,
+  drafts: null,
 };
 
 export type SessionEvent =
   /** A completed check: this is who the visitor is. */
-  | { type: "resolved"; userId: string; username: string | null; isAdmin: boolean }
+  | {
+      type: "resolved";
+      userId: string;
+      username: string | null;
+      isAdmin: boolean;
+      drafts?: DraftCounts | null;
+    }
   /** No session at all — signed out, or never signed in. */
   | { type: "anonymous" }
   /** The session existed and has now ended. */
@@ -59,6 +71,8 @@ export function reduce(
         userId: event.userId,
         error: null,
         expired: false,
+        // Never carry counts for a non-admin, whatever the payload claimed.
+        drafts: event.isAdmin ? (event.drafts ?? null) : null,
       };
 
     case "anonymous":

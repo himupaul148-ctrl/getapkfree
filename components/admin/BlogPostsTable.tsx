@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatDate, formatCount } from "@/lib/format";
@@ -14,7 +14,18 @@ export default function BlogPostsTable({ posts }: { posts: BlogSummary[] }) {
 
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<Sort>("newest");
-  const [status, setStatus] = useState<"all" | "published" | "draft">("all");
+  /*
+   * Seeded from ?status= so the admin bar's "3 drafts" chip lands here with
+   * the filter already applied, rather than dropping the admin into an
+   * unfiltered table they then have to narrow by hand.
+   */
+  const params = useSearchParams();
+  const initialStatus = params.get("status");
+  const [status, setStatus] = useState<"all" | "published" | "draft">(
+    initialStatus === "draft" || initialStatus === "published"
+      ? initialStatus
+      : "all",
+  );
   const [category, setCategory] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);

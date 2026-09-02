@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatCount, formatDate } from "@/lib/format";
@@ -35,6 +35,16 @@ export type ManagedApp = {
 export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
+  /*
+   * There was no publish filter here at all. The admin bar links to
+   * ?status=unpublished, so one had to exist for that chip to mean anything.
+   * "unpublished" is an app with no live build — which is what the dashboard
+   * already calls a withheld build.
+   */
+  const searchParams = useSearchParams();
+  const [status, setStatus] = useState<"all" | "unpublished">(
+    searchParams.get("status") === "unpublished" ? "unpublished" : "all",
+  );
   const [editing, setEditing] = useState<ManagedApp | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ManagedApp | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -43,15 +53,17 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
   const needle = query.trim().toLowerCase();
   const rows = useMemo(
     () =>
-      needle
-        ? apps.filter(
-            (app) =>
-              app.name.toLowerCase().includes(needle) ||
-              app.packageName.toLowerCase().includes(needle) ||
-              (app.developer?.toLowerCase().includes(needle) ?? false),
-          )
-        : apps,
-    [apps, needle],
+      apps.filter((app) => {
+        // An app with no live build is what the dashboard calls withheld.
+        if (status === "unpublished" && app.publishedCount > 0) return false;
+        if (!needle) return true;
+        return (
+          app.name.toLowerCase().includes(needle) ||
+          app.packageName.toLowerCase().includes(needle) ||
+          (app.developer?.toLowerCase().includes(needle) ?? false)
+        );
+      }),
+    [apps, needle, status],
   );
 
   /** Unpublishing every build is what removes an app from the public site. */
@@ -112,6 +124,24 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
           placeholder="Filter by name, package or developer…"
           className="w-full rounded-xl border border-base-700 bg-base-850 px-3.5 py-2.5 text-sm text-fg placeholder:text-fg-dim focus:border-brand-500 focus:outline-none"
         />
+
+          {/* Visible control for the same filter the admin bar links to, so
+              arriving via ?status=unpublished is explicable rather than
+              looking like half the catalogue vanished. */}
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value as typeof status)}
+              aria-label="Filter by publish status"
+              className="rounded-xl border border-base-700 bg-base-850 px-3.5 py-2 text-sm text-fg focus:border-brand-500 focus:outline-none"
+            >
+              <option value="all">All apps</option>
+              <option value="unpublished">Unpublished only</option>
+            </select>
+            <span className="text-xs text-fg-dim">
+              Showing {rows.length} of {apps.length}
+            </span>
+          </div>
       </div>
 
       {rows.length === 0 ? (
