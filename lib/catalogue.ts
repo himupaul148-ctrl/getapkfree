@@ -3,8 +3,13 @@ import { supabase } from "@/lib/supabase/public";
 import { latestVersion } from "@/lib/format";
 import type { App, AppSummary, AppWithVersions, Version } from "@/lib/types";
 
+// Every apps column toSummary() reads, and no others — screenshots in
+// particular is fetched by "*" but never used here (getAppBySlug fetches it
+// separately for the app detail page, where it is actually rendered). Was
+// costing 1,100 URLs / ~88KB per hourly cache refresh for data this query
+// discards before it ever reaches a component.
 const SELECT =
-  "*, versions(version_name, version_code, file_size, min_android_version, uploaded_at, scanned_at, scan_status)";
+  "id, name, slug, package_name, category, description, icon_url, developer_name, created_at, download_count, rating, rating_count, source_type, external_url, hosted_locally, versions(version_name, version_code, file_size, min_android_version, uploaded_at, scanned_at, scan_status)";
 
 /**
  * The joined versions come back already filtered by RLS to published builds,
