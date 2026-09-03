@@ -1,3 +1,4 @@
+import { revalidatePath, revalidateTag } from "next/cache";
 import { NextResponse, type NextRequest } from "next/server";
 import {
   BUCKET,
@@ -143,6 +144,15 @@ export async function POST(request: NextRequest) {
     .select("id")
     .maybeSingle();
 
+  // The post may already be published — getPublishedPosts is cached for an
+  // hour and the post page is ISR, so without this the old image keeps
+  // serving until that window lapses, with nothing to shorten it. Safe to
+  // call even when nothing was actually published yet: revalidating a path
+  // Next hasn't generated, or a tag nothing is cached under, is a no-op.
+  revalidateTag("blog", "max");
+  revalidatePath("/blog");
+  revalidatePath(`/blog/${slug}`);
+
   return NextResponse.json({
     ok: true,
     slug,
@@ -201,6 +211,12 @@ export async function DELETE(request: NextRequest) {
     .eq("slug", slug)
     .select("id")
     .maybeSingle();
+
+  // Same reasoning as the upload path above: drop the caches this write
+  // could be invalidating.
+  revalidateTag("blog", "max");
+  revalidatePath("/blog");
+  revalidatePath(`/blog/${slug}`);
 
   return NextResponse.json({
     ok: true,
