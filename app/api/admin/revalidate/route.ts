@@ -42,7 +42,11 @@ export async function POST(request: NextRequest) {
     revalidatePath(`/blog/${blogSlug}`);
   }
 
-  revalidatePath("/sitemap.xml");
+  // The sitemap needs nothing here. It used to carry `revalidate = 3600`,
+  // which gave it a cached response this call was meant to drop — except it
+  // never did, and the sitemap advertised 48 deleted apps for hours. It is
+  // force-dynamic now, so it re-renders per request off the `catalogue` and
+  // `blog` tags above. Re-adding a revalidatePath for it would be a no-op.
 
   return NextResponse.json({ revalidated: true, slug, blogSlug });
 }
