@@ -1,0 +1,51 @@
+name: CI
+
+# Every PR (against any branch) and every push to main gets typechecked,
+# tested, linted and built. Nothing here writes anywhere — no deploy, no
+# database access beyond the read-only queries `next build` already performs
+# for generateStaticParams.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npm test
+
+      - name: Lint
+        run: npm run lint
+
+      # next build resolves generateStaticParams for /app/[slug] and
+      # /blog/[slug] at build time, which reads the live catalogue and blog
+      # tables — read-only SELECTs, no writes. lib/supabase/public.ts throws
+      # at module load if either var is unset, so the build step fails
+      # outright without them configured as repository secrets. Both are
+      # already public — NEXT_PUBLIC_SUPABASE_ANON_KEY ships in every client
+      # bundle — so storing them here is a hygiene choice, not a
+      # confidentiality requirement.
+      - name: Build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: npm run build
