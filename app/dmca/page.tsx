@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Prose from "@/components/Prose";
+import { absolute } from "@/lib/seo";
 
 export const metadata: Metadata = {
   title: "DMCA",
   description: "How to report allegedly infringing content on GetApkFree.",
+  alternates: { canonical: absolute("/dmca") },
 };
 
 export default function DmcaPage() {

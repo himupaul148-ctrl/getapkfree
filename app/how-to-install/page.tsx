@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Prose from "@/components/Prose";
 import ScanBadge from "@/components/ScanBadge";
+import { absolute } from "@/lib/seo";
 
 export const metadata: Metadata = {
   title: "How to Install",
   description:
     "Why these apps are not on Google Play, how to enable installs from unknown sources, how to install an APK, and what the safety badges mean.",
+  alternates: { canonical: absolute("/how-to-install") },
 };
 
 export default function HowToInstallPage() {
