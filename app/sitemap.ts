@@ -4,8 +4,26 @@ import { getPublishedPosts } from "@/lib/blog";
 import { absolute } from "@/lib/seo";
 import { CATEGORIES } from "@/lib/types";
 
-// Rebuilt on the same hourly cadence as the catalogue itself.
-export const revalidate = 3600;
+/*
+ * Rendered per request rather than cached as a response.
+ *
+ * It previously carried `revalidate = 3600`, which made the generated XML a
+ * prerendered route-handler response with its own cache entry — one that
+ * outlived its 3600s window because Next 16 serves a stale entry until
+ * `expire` (a year here) while it refreshes in the background. Deleting 48
+ * apps left the sitemap advertising all of them, and it stayed that way:
+ * `revalidateTag("catalogue", "max")` only marks the *data* stale, and the
+ * `revalidatePath("/sitemap.xml")` in the admin revalidate route never
+ * dropped the response entry.
+ *
+ * Dropping the response cache removes the layer that went stale. The cost is
+ * one render per request, which is nothing: the two queries underneath are
+ * still `unstable_cache`d for an hour and tagged, so Supabase is hit no more
+ * often than before, and a sitemap is fetched by crawlers, not by visitors.
+ * The upshot is that the sitemap now always agrees with the catalogue rather
+ * than depending on an invalidation call that demonstrably did not fire.
+ */
+export const dynamic = "force-dynamic";
 
 /**
  * One entry per app, plus the eight category views and the static pages.
