@@ -11,8 +11,12 @@
  * back to rendering an unoptimised <img> instead of failing outright.
  */
 
-/** Derived so the storage host follows whichever Supabase project is configured. */
-function supabaseHost(): string | null {
+/**
+ * Derived so the storage host follows whichever Supabase project is
+ * configured. Exported because next.config.ts needs the same hostname for the
+ * CSP `connect-src`, and deriving it twice is how the two end up disagreeing.
+ */
+export function supabaseHost(): string | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   if (!url) return null;
   try {
