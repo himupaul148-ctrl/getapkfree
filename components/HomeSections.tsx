@@ -1,5 +1,6 @@
 import Link from "next/link";
 import AppCard from "@/components/AppCard";
+import AppCarousel, { CAROUSEL_ITEM } from "@/components/AppCarousel";
 import CatalogueSection from "@/components/catalogue/CatalogueSection";
 import CategoryCards from "@/components/catalogue/CategoryCards";
 import FilterProvider from "@/components/catalogue/FilterProvider";
@@ -25,12 +26,36 @@ export default async function HomeSections({ filters }: { filters: Filters }) {
     );
   }
 
-  // Straight download count, as specified. The "Trending" sort option in the
-  // catalogue below still damps by recency — that one exists to differ from
-  // "Most downloaded", which this section does not need to.
-  const trending = [...apps]
-    .sort((a, b) => b.downloadCount - a.downloadCount)
-    .slice(0, 10);
+  /*
+   * Downloads first, then most recently updated, then name.
+   *
+   * The heading above this row is deliberately neutral — "Explore Apps" rather
+   * than a claim about popularity or freshness. That is what lets the order be
+   * a blend: only seven apps have any download at all, all of them 1-3, so a
+   * heading promising "most downloaded" would be false today, and one promising
+   * "most recently updated" would go false later as downloads accumulate and
+   * the first key starts to dominate. A neutral label stays true either way, so
+   * this sort needs no revisiting when the traffic arrives.
+   *
+   * The name key is what keeps the order stable between renders once the
+   * other two tie.
+   *
+   * Apps with no published build are dropped: `latestVersion` is null when RLS
+   * returned no published version, and an app with nothing to install does not
+   * belong in a row inviting people to explore.
+   *
+   * 12 rather than 10 — a carousel needs enough travel to be worth scrolling
+   * at the 5-across desktop width.
+   */
+  const exploreApps = [...apps]
+    .filter((app) => app.latestVersion !== null)
+    .sort(
+      (a, b) =>
+        b.downloadCount - a.downloadCount ||
+        (b.lastUpdated ?? "").localeCompare(a.lastUpdated ?? "") ||
+        a.name.localeCompare(b.name),
+    )
+    .slice(0, 12);
 
   const recentlyUpdated = [...apps]
     .filter((app) => app.lastUpdated)
@@ -74,17 +99,32 @@ export default async function HomeSections({ filters }: { filters: Filters }) {
         </Link>
       </section>
 
-      {trending.length > 0 && (
-        <section id="trending" className="mt-16">
-          <h2 className="text-2xl font-bold tracking-tight">Trending This Week</h2>
+      {exploreApps.length > 0 && (
+        /* id kept as "trending": the header nav, the 404 page and any link
+           anyone has already shared point at #trending. */
+        <section
+          id="trending"
+          aria-labelledby="explore-apps-heading"
+          className="mt-16"
+        >
+          <h2
+            id="explore-apps-heading"
+            className="text-2xl font-bold tracking-tight"
+          >
+            Explore Apps
+          </h2>
           <p className="mt-1 text-sm text-fg-muted">
-            The ten most downloaded apps in the catalogue.
+            Discover apps from the GetAPKFree catalogue
           </p>
-          <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-            {trending.map((app, index) => (
-              <AppCard key={app.id} app={app} rank={index + 1} />
+
+          {/* Cards stay server-rendered — the carousel only wraps them. */}
+          <AppCarousel label="Explore apps">
+            {exploreApps.map((app) => (
+              <li key={app.id} className={CAROUSEL_ITEM}>
+                <AppCard app={app} />
+              </li>
             ))}
-          </div>
+          </AppCarousel>
         </section>
       )}
 
