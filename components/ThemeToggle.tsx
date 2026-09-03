@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type Theme = "dark" | "light" | "system";
@@ -33,16 +33,43 @@ export default function ThemeToggle({
   persist?: boolean;
 }) {
   const [theme, setTheme] = useState<Theme>(initial);
-
-  // Trust localStorage over the server value: it is what the pre-paint script
-  // already applied, so anything else would flip the page after hydration.
-  useEffect(() => {
-    const stored = localStorage.getItem("gaf-theme") as Theme | null;
-    if (stored && stored !== theme) setTheme(stored);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Guards the mount-time correction below so it can run at most once. Not a
+  // dependency-array job: the correction has to happen before the very first
+  // apply()/persist() pass, which a `useEffect(..., [])` cannot do — that
+  // effect body already needs to run its own setState, exactly the
+  // react-hooks/set-state-in-effect pattern this file used to trip.
+  const corrected = useRef(false);
 
   useEffect(() => {
+    /*
+     * Trust localStorage over the server value on the very first run: it is
+     * what the pre-paint script already applied, so anything else would flip
+     * the page after hydration. This has to happen inside the same effect
+     * that applies/persists theme, and before it does either — a separate
+     * "just correct state" effect would still run its sibling (apply+persist)
+     * once with the stale `initial` value in the same commit flush, which
+     * would overwrite a real stored preference with the server default before
+     * the correction ever got a chance to take effect. Confirmed live: an
+     * earlier version of this fix used useSyncExternalStore to read the
+     * stored value instead, on the reasoning that its hydration-safe resync
+     * happens before passive effects — measured wrong. It did not run in time
+     * here, and a stored "light" was silently clobbered back to "dark" on
+     * every load.
+     */
+    if (!corrected.current) {
+      corrected.current = true;
+      let stored: Theme | null = null;
+      try {
+        stored = localStorage.getItem("gaf-theme") as Theme | null;
+      } catch {
+        /* private mode or storage disabled; fall through to the default */
+      }
+      if (stored && stored !== theme) {
+        setTheme(stored);
+        return; // this same effect re-runs once the corrected state commits
+      }
+    }
+
     apply(theme);
     localStorage.setItem("gaf-theme", theme);
 

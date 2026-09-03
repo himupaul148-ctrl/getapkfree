@@ -23,11 +23,30 @@ export default function BlogFilters({
   const [query, setQuery] = useState(initialQuery);
   const [category, setCategory] = useState(initialCategory);
 
-  // Keep the controls honest when the user navigates back or forward.
-  useEffect(() => {
+  /*
+   * Keep the controls honest when the user navigates back or forward: this
+   * component survives that navigation (Next re-renders it with new props
+   * rather than remounting it), so query/category would otherwise still show
+   * whatever was last typed.
+   *
+   * Adjusted during render rather than in an effect — React's own pattern for
+   * this exact case (see "Adjusting state when a prop changes" in the React
+   * docs). A mirrored previous-props state lets the comparison run inline and
+   * converge in the same render, so there is no extra effect-triggered pass
+   * and no flash of the stale value.
+   */
+  const [prevInitial, setPrevInitial] = useState({
+    query: initialQuery,
+    category: initialCategory,
+  });
+  if (
+    initialQuery !== prevInitial.query ||
+    initialCategory !== prevInitial.category
+  ) {
+    setPrevInitial({ query: initialQuery, category: initialCategory });
     setQuery(initialQuery);
     setCategory(initialCategory);
-  }, [initialQuery, initialCategory]);
+  }
 
   /*
    * `mode` is the whole point here. Typing used to push one entry per

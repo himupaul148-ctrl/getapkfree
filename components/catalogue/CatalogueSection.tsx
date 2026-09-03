@@ -153,9 +153,16 @@ export default function CatalogueSection({ apps }: { apps: AppSummary[] }) {
    * "browser" would otherwise send seven events and make the report useless.
    * results_count is read from a ref so a later re-render cannot re-fire this
    * effect with a stale count.
+   *
+   * The ref is kept current in its own effect rather than assigned during
+   * render: React can throw away or double-invoke a render (Strict Mode,
+   * concurrent features), and a ref write is a side effect that must not run
+   * for a render that never actually commits.
    */
   const resultsRef = useRef(results.length);
-  resultsRef.current = results.length;
+  useEffect(() => {
+    resultsRef.current = results.length;
+  }, [results.length]);
 
   useEffect(() => {
     if (!needle) return;

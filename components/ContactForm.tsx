@@ -21,9 +21,13 @@ export default function ContactForm() {
   const [failure, setFailure] = useState<string | null>(null);
 
   // Honeypot value, and when the form first rendered — both are checked
-  // server-side too, because a bot posting straight to the API never runs this.
+  // server-side too, because a bot posting straight to the API never runs
+  // this. mountedAt uses useState's lazy initializer rather than useRef:
+  // useRef evaluates its argument on every render, so Date.now() would keep
+  // calling an impure function during render even though only the first
+  // result is ever kept; useState(() => …) is what defers it to just once.
   const honeypot = useRef("");
-  const mountedAt = useRef(Date.now());
+  const [mountedAt] = useState(() => Date.now());
 
   function set(field: Field, value: string) {
     setValues((current) => ({ ...current, [field]: value }));
@@ -61,7 +65,7 @@ export default function ContactForm() {
         body: JSON.stringify({
           ...values,
           website: honeypot.current,
-          elapsed: Date.now() - mountedAt.current,
+          elapsed: Date.now() - mountedAt,
         }),
       });
       const body = await res.json().catch(() => ({}));
