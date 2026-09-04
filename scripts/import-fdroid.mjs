@@ -349,9 +349,12 @@ async function main() {
 
     const localized = app.localized?.["en-US"] ?? app.localized?.en ?? {};
     const name = (localized.name || app.name || "").trim();
-    const description =
-      (localized.summary || app.summary || "").trim() ||
-      stripHtml(localized.description || app.description).slice(0, 400);
+    // Prefer the fuller description when it actually says more than the
+    // one-line summary; some entries only ever populate one field or the
+    // other, so summary stays the fallback rather than being dropped.
+    const summary = stripHtml((localized.summary || app.summary || "").trim()).slice(0, 400);
+    const fullDescription = stripHtml((localized.description || app.description || "").trim()).slice(0, 400);
+    const description = (fullDescription.length > summary.length ? fullDescription : summary) || null;
 
     if (!name) {
       skips.badMetadata++;
