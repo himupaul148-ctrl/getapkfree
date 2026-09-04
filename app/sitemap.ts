@@ -55,12 +55,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.7,
   }));
 
-  const appPages: MetadataRoute.Sitemap = apps.map((app) => ({
-    url: absolute(`/app/${app.slug}`),
-    lastModified: app.lastUpdated ? new Date(app.lastUpdated) : undefined,
-    changeFrequency: "weekly",
-    priority: 0.6,
-  }));
+  // latestVersion is derived from getCatalogue()'s already-published-only
+  // versions join (see toSummary in lib/catalogue.ts), so null here means the
+  // same thing generateMetadata's own noindex check means: no build has
+  // cleared scanning yet. A page with nothing to download isn't worth asking
+  // a crawler to fetch.
+  const appPages: MetadataRoute.Sitemap = apps
+    .filter((app) => app.latestVersion !== null)
+    .map((app) => ({
+      url: absolute(`/app/${app.slug}`),
+      lastModified: app.lastUpdated ? new Date(app.lastUpdated) : undefined,
+      changeFrequency: "weekly",
+      priority: 0.6,
+    }));
 
   // Posts carry lastModified from updated_at, so an edit re-surfaces the page
   // to crawlers without waiting for a full recrawl.

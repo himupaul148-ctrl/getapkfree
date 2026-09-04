@@ -75,6 +75,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title,
     description,
     alternates: { canonical: url },
+    // No published build means the page is just an icon, a name and a "come
+    // back later" message — nothing worth ranking. Still rendered normally
+    // for a visitor who lands here directly; only crawlers are asked to skip
+    // it, and only until a build is published (getPublishedVersions is what
+    // the page body itself already uses to decide whether to show a download
+    // button, so this reuses the exact same signal rather than a new one).
+    robots: latest ? undefined : { index: false, follow: true },
     openGraph: {
       type: "website",
       url,
