@@ -12,6 +12,31 @@ function tokenMatches(provided: string, expected: string): boolean {
   return timingSafeEqual(a, b);
 }
 
+/** Same rule BLOG_POSTING.md documents and scripts/publish-blog-posts.mjs
+ *  already enforces client-side: lowercase words joined by single hyphens.
+ *  Repeated here because this route is reachable directly (with the publish
+ *  token) without going through that script, and slug has no database-level
+ *  format constraint — only UNIQUE. */
+const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/** Every post already in blog-posts/ is 597-2389 words; 500 sits comfortably
+ *  below all of them while still catching an accidental stub (a post saved
+ *  mid-draft, a truncated paste, a near-empty placeholder) before it goes
+ *  live. Word count, not character count, since a "substantive content"
+ *  check should track roughly how much was actually written, not how many
+ *  characters a few long URLs or code blocks happen to add. */
+const MIN_CONTENT_WORDS = 500;
+
+function wordCount(text: string): number {
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+/** Case-insensitive, whitespace-normalised comparison — "My  Post" and
+ *  "my post" collide, "My Post" and "My Post 2" do not. */
+function normaliseTitle(title: string): string {
+  return title.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -68,6 +93,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Slug format: the script already enforces this before it ever calls
+    // this route, but this route is reachable directly with just the
+    // publish token, and slug has no format constraint at the database
+    // level (only UNIQUE) — so a malformed slug from any other caller would
+    // otherwise insert silently.
+    if (typeof slug !== 'string' || !SLUG_RE.test(slug)) {
+      return NextResponse.json(
+        {
+          error: 'Invalid slug: must be lowercase words joined by hyphens',
+          slug,
+        },
+        { status: 400 }
+      );
+    }
+
+    // Minimum substantive content: catches an accidental stub before it
+    // publishes, without touching the authoring workflow's own validation.
+    if (typeof content !== 'string' || wordCount(content) < MIN_CONTENT_WORDS) {
+      return NextResponse.json(
+        {
+          error: `Content is too short: ${typeof content === 'string' ? wordCount(content) : 0} words, minimum ${MIN_CONTENT_WORDS}`,
+        },
+        { status: 400 }
+      );
+    }
+
     // Initialize Supabase client with service role key
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
@@ -83,6 +134,38 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Failed to check existing post', details: checkError.message },
         { status: 500 }
+      );
+    }
+
+    // Exact-title collision: catches the same topic accidentally published
+    // twice under two different slugs. Compares against every other
+    // published post's title, excluding this post's own row (by id when
+    // updating) so re-saving a post under its unchanged title is not a
+    // false positive.
+    const { data: publishedTitles, error: titlesError } = await supabase
+      .from('blog_posts')
+      .select('id, title')
+      .eq('published', true);
+
+    if (titlesError) {
+      return NextResponse.json(
+        { error: 'Failed to check existing titles', details: titlesError.message },
+        { status: 500 }
+      );
+    }
+
+    const normalisedTitle = normaliseTitle(title);
+    const collision = (publishedTitles ?? []).find(
+      (post) =>
+        post.id !== existingPost?.id && normaliseTitle(post.title) === normalisedTitle,
+    );
+    if (collision) {
+      return NextResponse.json(
+        {
+          error: 'A published post with this exact title already exists',
+          conflictingPostId: collision.id,
+        },
+        { status: 409 }
       );
     }
 
