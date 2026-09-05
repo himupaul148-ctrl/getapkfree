@@ -18,26 +18,73 @@ import { SITE_NAME, absolute } from "@/lib/seo";
 // hour rather than once a visitor.
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  // Same reason as the detail page: this is already the full title.
-  title: { absolute: "GetApkFree Blog — App guides and recommendations" },
-  description:
-    "Guides, tips and app recommendations from the GetApkFree team. Find the best open-source Android apps for privacy, productivity, gaming and more.",
-  alternates: { canonical: absolute("/blog") },
-  openGraph: {
-    type: "website",
-    url: absolute("/blog"),
-    title: `Blog | ${SITE_NAME}`,
+/**
+ * Mirrors the homepage's per-filter metadata pattern (app/page.tsx): a search
+ * is noindexed and points back at the plain listing, while a page number or
+ * category is a real, self-referencing, indexable URL rather than always
+ * canonicalizing to page 1 — the latter was actively telling crawlers to
+ * ignore every page beyond the first, which only gets worse as more posts
+ * push older ones past page one.
+ */
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; category?: string; page?: string }>;
+}): Promise<Metadata> {
+  const params = await searchParams;
+  const query = (params.q ?? "").trim();
+  const category = normaliseBlogCategory(params.category);
+
+  let canonicalPath = "/blog";
+  let robots: Metadata["robots"] = { index: true, follow: true };
+
+  if (query) {
+    // Same treatment as the homepage's search results: useful to share, not
+    // worth indexing as its own page — it canonicalises back to the plain
+    // listing rather than to a query string full of one visitor's input.
+    robots = { index: false, follow: true };
+  } else {
+    // Recompute the same clamped page number the page body renders (see
+    // BlogIndexPage below), so the canonical always points at what's
+    // actually there instead of a page number that got clamped down.
+    const all = await getPublishedPosts();
+    const filtered = category
+      ? all.filter((post) => post.category === category)
+      : all;
+    const totalPages = Math.max(1, Math.ceil(filtered.length / POSTS_PER_PAGE));
+    const page = Math.min(normalisePage(params.page), totalPages);
+
+    const qs = new URLSearchParams();
+    if (category) qs.set("category", category);
+    if (page > 1) qs.set("page", String(page));
+    const suffix = qs.toString();
+    canonicalPath = suffix ? `/blog?${suffix}` : "/blog";
+  }
+
+  const url = absolute(canonicalPath);
+
+  return {
+    // Same reason as the detail page: this is already the full title.
+    title: { absolute: "GetApkFree Blog — App guides and recommendations" },
     description:
-      "Guides, tips and app recommendations from the GetApkFree team.",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: `Blog | ${SITE_NAME}`,
-    description:
-      "Guides, tips and app recommendations from the GetApkFree team.",
-  },
-};
+      "Guides, tips and app recommendations from the GetApkFree team. Find the best open-source Android apps for privacy, productivity, gaming and more.",
+    alternates: { canonical: url },
+    robots,
+    openGraph: {
+      type: "website",
+      url,
+      title: `Blog | ${SITE_NAME}`,
+      description:
+        "Guides, tips and app recommendations from the GetApkFree team.",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `Blog | ${SITE_NAME}`,
+      description:
+        "Guides, tips and app recommendations from the GetApkFree team.",
+    },
+  };
+}
 
 function matches(post: BlogSummary, needle: string): boolean {
   return (
