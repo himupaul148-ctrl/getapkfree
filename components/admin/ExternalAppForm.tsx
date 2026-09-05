@@ -110,6 +110,16 @@ export default function ExternalAppForm() {
       return;
     }
 
+    // The catalogue-wide audit's own thin-content threshold: every external
+    // listing that later turned out thin had a description at or under this
+    // length. Blocking it here is cheaper than backfilling it later.
+    if (description.trim().length <= 40) {
+      setError(
+        "Description is too short (40 characters or fewer). Write a real description before saving — a copied tagline isn't enough.",
+      );
+      return;
+    }
+
     // package_name is NOT NULL and unique. GitHub and plain pages do not have
     // one, so fall back to something stable and obviously synthetic rather
     // than inventing a plausible-looking Android package id.
@@ -368,6 +378,12 @@ export default function ExternalAppForm() {
             Up to {MAX_SCREENSHOTS}. Play does not expose these, so they are
             usually yours to add.
           </p>
+          {shots.every((s) => !s.trim()) && (
+            <p className="mt-2 text-xs text-warn-300">
+              No screenshots added. Consider pasting 1–2 manually — the
+              source doesn&rsquo;t provide them automatically.
+            </p>
+          )}
           <div className="mt-3 grid gap-4 sm:grid-cols-2">
             {shots.map((shot, index) => (
               <ImageField
