@@ -3,31 +3,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { NextResponse, type NextRequest } from "next/server";
 import { isAdmin } from "@/lib/admin";
-import { releaseFromApiLevel } from "@/lib/android";
+import { parseApkFile, type ApkMetadata } from "@/lib/apk/parse";
 
 // The parser needs Node built-ins (Buffer, zlib), so this cannot run on edge.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** What the upload form needs back. Everything is best-effort. */
-export type ApkMetadata = {
-  packageName: string | null;
-  versionName: string | null;
-  versionCode: number | null;
-  minAndroidVersion: string | null;
-  label: string | null;
-  permissions: string[];
-  icon: string | null;
-};
-
-function firstString(value: unknown): string | null {
-  if (typeof value === "string") return value;
-  if (Array.isArray(value)) {
-    const found = value.find((v) => typeof v === "string");
-    return typeof found === "string" ? found : null;
-  }
-  return null;
-}
+// Re-exported so nothing that imported the type from this route breaks —
+// the shape itself now lives in lib/apk/parse.ts, shared with any future
+// remote-URL import pipeline.
+export type { ApkMetadata };
 
 export async function POST(request: NextRequest) {
   if (!(await isAdmin())) {
@@ -68,28 +53,7 @@ export async function POST(request: NextRequest) {
     const path = join(dir, "upload.apk");
     await writeFile(path, buffer);
 
-    const { default: AppInfoParser } = await import("app-info-parser");
-    const parsed = (await new AppInfoParser(path).parse()) as Record<string, unknown>;
-
-    const application = (parsed.application ?? {}) as Record<string, unknown>;
-    const usesSdk = (parsed.usesSdk ?? {}) as Record<string, unknown>;
-    const permissions = Array.isArray(parsed.usesPermissions)
-      ? (parsed.usesPermissions as Record<string, unknown>[])
-          .map((p) => firstString(p?.name))
-          .filter((p): p is string => Boolean(p))
-      : [];
-
-    const metadata: ApkMetadata = {
-      packageName: firstString(parsed.package),
-      versionName: firstString(parsed.versionName),
-      versionCode: Number.isFinite(Number(parsed.versionCode))
-        ? Number(parsed.versionCode)
-        : null,
-      minAndroidVersion: releaseFromApiLevel(usesSdk.minSdkVersion),
-      label: firstString(application.label) ?? firstString(parsed.label),
-      permissions: [...new Set(permissions)].sort(),
-      icon: typeof parsed.icon === "string" ? parsed.icon : null,
-    };
+    const metadata = await parseApkFile(path);
 
     return NextResponse.json({ metadata });
   } catch (caught) {

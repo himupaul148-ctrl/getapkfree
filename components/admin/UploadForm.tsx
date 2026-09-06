@@ -5,6 +5,12 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { CATEGORIES } from "@/lib/types";
+import {
+  DuplicateVersionError,
+  createVersion,
+  findOrCreateApp,
+  updateAppMetadata,
+} from "@/lib/apk/save-build";
 
 const MAX_BYTES = 100 * 1024 * 1024; // matches the bucket's file_size_limit
 
@@ -19,14 +25,6 @@ type Metadata = {
 };
 
 type Stage = "idle" | "uploading" | "parsing" | "saving";
-
-function slugify(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60);
-}
 
 export default function UploadForm() {
   const router = useRouter();
@@ -159,70 +157,37 @@ export default function UploadForm() {
     try {
       // Reuse the app row if this package is already in the catalogue, so a new
       // build lands as another version rather than a duplicate listing.
-      const { data: existing } = await supabase
-        .from("apps")
-        .select("id, slug")
-        .eq("package_name", packageName.trim())
-        .maybeSingle<{ id: string; slug: string }>();
-
-      let appId = existing?.id;
-      let slug = existing?.slug;
-
-      if (!appId) {
-        const base = slugify(name) || slugify(packageName) || "app";
-        // Slug is unique; fall back to a suffixed one rather than failing.
-        const { data: clash } = await supabase
-          .from("apps")
-          .select("id")
-          .eq("slug", base)
-          .maybeSingle();
-        slug = clash ? `${base}-${Date.now().toString(36).slice(-4)}` : base;
-
-        const { data: created, error: appError } = await supabase
-          .from("apps")
-          .insert({
-            name: name.trim(),
-            slug,
-            package_name: packageName.trim(),
-            category,
-            description: description.trim() || null,
-            developer_name: developer.trim() || null,
-            icon_url: icon,
-          })
-          .select("id, slug")
-          .single<{ id: string; slug: string }>();
-
-        if (appError) throw appError;
-        appId = created.id;
-        slug = created.slug;
-      } else {
-        // Refresh the editable details on an existing listing.
-        const { error: updateError } = await supabase
-          .from("apps")
-          .update({
-            category,
-            description: description.trim() || null,
-            developer_name: developer.trim() || null,
-            ...(icon ? { icon_url: icon } : {}),
-          })
-          .eq("id", appId);
-        if (updateError) throw updateError;
-      }
-
-      const { error: versionError } = await supabase.from("versions").insert({
-        app_id: appId,
-        version_name: versionName.trim(),
-        version_code: code,
-        file_url: fileUrl,
-        file_size: file.size,
-        min_android_version: minAndroid.trim() || null,
-        permissions,
-        scan_status: markScanned ? "clean" : "pending",
-        scanned_at: markScanned ? new Date().toISOString() : null,
-        published: publish,
+      const { appId, slug, created } = await findOrCreateApp(supabase, {
+        packageName: packageName.trim(),
+        name: name.trim(),
+        category,
+        description: description.trim() || null,
+        developerName: developer.trim() || null,
+        iconUrl: icon,
       });
 
-      if (versionError) throw versionError;
+      if (!created) {
+        // Refresh the editable details on an existing listing.
+        await updateAppMetadata(supabase, appId, {
+          category,
+          description: description.trim() || null,
+          developerName: developer.trim() || null,
+          iconUrl: icon,
+        });
+      }
+
+      await createVersion(supabase, {
+        appId,
+        versionName: versionName.trim(),
+        versionCode: code,
+        fileUrl,
+        fileSize: file.size,
+        minAndroidVersion: minAndroid.trim() || null,
+        permissions,
+        scanStatus: markScanned ? "clean" : "pending",
+        scannedAt: markScanned ? new Date().toISOString() : null,
+        published: publish,
+      });
 
       // The catalogue is cached for an hour; drop it so the new build shows up
       // straight away rather than whenever the window happens to lapse.
@@ -234,16 +199,16 @@ export default function UploadForm() {
         /* the build is saved either way; a stale list is not worth failing on */
       });
 
-      setSuccess({ slug: slug!, name: name.trim() });
+      setSuccess({ slug, name: name.trim() });
       setNotice(null);
       router.refresh();
     } catch (caught) {
-      const message =
-        caught instanceof Error ? caught.message : "Could not save the build.";
       setError(
-        message.includes("versions_app_id_version_code_key")
-          ? `Version code ${code} already exists for this app. Bump it and try again.`
-          : message,
+        caught instanceof DuplicateVersionError
+          ? `Version code ${caught.versionCode} already exists for this app. Bump it and try again.`
+          : caught instanceof Error
+            ? caught.message
+            : "Could not save the build.",
       );
     } finally {
       setStage("idle");
