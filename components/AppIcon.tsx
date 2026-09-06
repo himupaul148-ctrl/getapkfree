@@ -50,7 +50,7 @@ export default function AppIcon({
   return (
     <Image
       src={src}
-      alt=""
+      alt={name}
       width={size}
       height={size}
       loading={priority ? undefined : "lazy"}
