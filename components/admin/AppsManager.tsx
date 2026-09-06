@@ -2,11 +2,17 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatCount, formatDate } from "@/lib/format";
 import SourceBadge from "@/components/SourceBadge";
+import ScanBadge from "@/components/ScanBadge";
 import EditMetadataModal from "@/components/admin/EditMetadataModal";
+import {
+  canPublishVersion,
+  setVersionPublished,
+  type ManagedVersion,
+} from "@/lib/admin/version-publish";
 import type { SourceType } from "@/lib/sources";
 
 export type ManagedApp = {
@@ -30,6 +36,14 @@ export type ManagedApp = {
   manualFields: string[];
   latestVersionId: string | null;
   latestVersionName: string | null;
+  /** Every build, newest first — publish/unpublish now targets one of these, never the app as a whole. */
+  versions: ManagedVersion[];
+};
+
+type ConfirmVersionAction = {
+  app: ManagedApp;
+  version: ManagedVersion;
+  nextPublished: boolean;
 };
 
 export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
@@ -47,7 +61,9 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
   );
   const [editing, setEditing] = useState<ManagedApp | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ManagedApp | null>(null);
+  const [confirmVersion, setConfirmVersion] = useState<ConfirmVersionAction | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [busyVersionId, setBusyVersionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const needle = query.trim().toLowerCase();
@@ -82,22 +98,28 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
     });
   }
 
-  /** Unpublishing every build is what removes an app from the public site. */
-  async function setPublished(app: ManagedApp, published: boolean) {
+  /**
+   * Publishes or unpublishes exactly the one build the admin picked —
+   * `setVersionPublished` filters by that version's own id, never by
+   * app_id, so a sibling build (a still-pending import sitting next to an
+   * already-published one, say) is never touched.
+   */
+  async function applyVersionPublish(action: ConfirmVersionAction) {
     setError(null);
-    setBusyId(app.id);
-    const supabase = createClient();
-    const { error: updateError } = await supabase
-      .from("versions")
-      .update({ published })
-      .eq("app_id", app.id);
-    setBusyId(null);
-    if (updateError) {
-      setError(updateError.message);
-      return;
+    setBusyVersionId(action.version.id);
+    try {
+      const supabase = createClient();
+      await setVersionPublished(supabase, action.version.id, action.nextPublished);
+      await revalidate(action.app.slug);
+      setConfirmVersion(null);
+      router.refresh();
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Could not update that build.",
+      );
+    } finally {
+      setBusyVersionId(null);
     }
-    await revalidate(app.slug);
-    router.refresh();
   }
 
   async function remove(app: ManagedApp) {
@@ -184,48 +206,59 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
               </thead>
               <tbody className="divide-y divide-base-800 bg-base-900">
                 {rows.map((app) => (
-                  <tr key={app.id}>
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/app/${app.slug}`}
-                        className="font-medium text-fg hover:text-brand-400"
-                      >
-                        {app.name}
-                      </Link>
-                      <p className="font-mono text-xs text-fg-dim">
-                        {app.packageName}
-                      </p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <SourceBadge
-                        sourceType={app.sourceType}
-                        externalUrl={app.externalUrl}
-                      />
-                    </td>
-                    <td className="px-4 py-3 text-fg-muted">{app.category}</td>
-                    <td className="px-4 py-3 text-fg-muted">
-                      {app.versionCount}
-                      <span className="text-fg-dim">
-                        {" "}
-                        ({app.publishedCount} live)
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-fg-muted">
-                      {formatCount(app.downloadCount)}
-                    </td>
-                    <td className="px-4 py-3 text-fg-muted">
-                      {formatDate(app.createdAt)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Actions
-                        app={app}
-                        busy={busyId === app.id}
-                        onEdit={() => setEditing(app)}
-                        onToggle={setPublished}
-                        onDelete={() => setConfirmDelete(app)}
-                      />
-                    </td>
-                  </tr>
+                  <Fragment key={app.id}>
+                    <tr>
+                      <td className="px-4 py-3">
+                        <Link
+                          href={`/app/${app.slug}`}
+                          className="font-medium text-fg hover:text-brand-400"
+                        >
+                          {app.name}
+                        </Link>
+                        <p className="font-mono text-xs text-fg-dim">
+                          {app.packageName}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <SourceBadge
+                          sourceType={app.sourceType}
+                          externalUrl={app.externalUrl}
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-fg-muted">{app.category}</td>
+                      <td className="px-4 py-3 text-fg-muted">
+                        {app.versionCount}
+                        <span className="text-fg-dim">
+                          {" "}
+                          ({app.publishedCount} live)
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-fg-muted">
+                        {formatCount(app.downloadCount)}
+                      </td>
+                      <td className="px-4 py-3 text-fg-muted">
+                        {formatDate(app.createdAt)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Actions
+                          busy={busyId === app.id}
+                          onEdit={() => setEditing(app)}
+                          onDelete={() => setConfirmDelete(app)}
+                        />
+                      </td>
+                    </tr>
+                    <tr>
+                      <td colSpan={7} className="border-t border-base-800/60 bg-base-950/40 px-4 py-3">
+                        <VersionList
+                          app={app}
+                          busyVersionId={busyVersionId}
+                          onRequestToggle={(version, nextPublished) =>
+                            setConfirmVersion({ app, version, nextPublished })
+                          }
+                        />
+                      </td>
+                    </tr>
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -263,11 +296,18 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
                 </dl>
                 <div className="mt-3">
                   <Actions
-                    app={app}
                     busy={busyId === app.id}
                     onEdit={() => setEditing(app)}
-                    onToggle={setPublished}
                     onDelete={() => setConfirmDelete(app)}
+                  />
+                </div>
+                <div className="mt-3 border-t border-base-800 pt-3">
+                  <VersionList
+                    app={app}
+                    busyVersionId={busyVersionId}
+                    onRequestToggle={(version, nextPublished) =>
+                      setConfirmVersion({ app, version, nextPublished })
+                    }
                   />
                 </div>
               </li>
@@ -287,6 +327,50 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
         />
       )}
 
+      {confirmVersion && (
+        <Modal
+          title={`${confirmVersion.nextPublished ? "Publish" : "Unpublish"} version ${confirmVersion.version.versionName} (${confirmVersion.version.versionCode})?`}
+          onClose={() => setConfirmVersion(null)}
+        >
+          <p className="text-sm leading-relaxed text-fg-muted">
+            {confirmVersion.nextPublished ? (
+              <>
+                This makes only <strong>this build</strong> of {confirmVersion.app.name}{" "}
+                downloadable from the public site. Other builds of this app are not
+                affected.
+              </>
+            ) : (
+              <>
+                This removes only <strong>this build</strong> ({confirmVersion.version.versionName}) of{" "}
+                {confirmVersion.app.name} from the public site. Other builds of this
+                app are not affected.
+              </>
+            )}
+          </p>
+          <div className="mt-6 flex gap-3">
+            <button
+              type="button"
+              onClick={() => void applyVersionPublish(confirmVersion)}
+              disabled={busyVersionId === confirmVersion.version.id}
+              className="rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-semibold text-base-950 hover:bg-brand-400 disabled:opacity-60"
+            >
+              {busyVersionId === confirmVersion.version.id
+                ? "Working…"
+                : confirmVersion.nextPublished
+                  ? "Publish this build"
+                  : "Unpublish this build"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmVersion(null)}
+              className="rounded-xl border border-base-700 px-4 py-2.5 text-sm text-fg-muted hover:text-fg"
+            >
+              Cancel
+            </button>
+          </div>
+        </Modal>
+      )}
+
       {confirmDelete && (
         <Modal
           title={`Delete ${confirmDelete.name}?`}
@@ -298,8 +382,8 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
             rows are kept but detached. This cannot be undone.
           </p>
           <p className="mt-3 text-sm text-fg-dim">
-            To take it off the public site without losing anything, use
-            Unpublish instead.
+            To take a specific build off the public site without losing
+            anything, use that build&rsquo;s Unpublish button instead.
           </p>
           <div className="mt-6 flex gap-3">
             <button
@@ -324,20 +408,78 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
   );
 }
 
-function Actions({
+/**
+ * One line per build: version, scan status, published state, and the one
+ * action that actually applies to it. This is the replacement for the old
+ * app-wide Publish/Unpublish toggle — every action here is scoped to a
+ * single version id.
+ */
+function VersionList({
   app,
-  busy,
-  onEdit,
-  onToggle,
-  onDelete,
+  busyVersionId,
+  onRequestToggle,
 }: {
   app: ManagedApp;
+  busyVersionId: string | null;
+  onRequestToggle: (version: ManagedVersion, nextPublished: boolean) => void;
+}) {
+  if (app.versions.length === 0) {
+    return <p className="text-xs text-fg-dim">No builds uploaded yet.</p>;
+  }
+
+  return (
+    <ul className="space-y-2">
+      {app.versions.map((version) => {
+        const eligible = canPublishVersion(version.scanStatus);
+        const busy = busyVersionId === version.id;
+        return (
+          <li
+            key={version.id}
+            className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs"
+          >
+            <span className="font-mono font-medium text-fg">
+              v{version.versionName}
+            </span>
+            <span className="text-fg-dim">build {version.versionCode}</span>
+            <ScanBadge status={version.scanStatus} scannedAt={version.scannedAt} showDate={false} />
+            <span
+              className={`rounded-full px-2 py-0.5 font-medium ${
+                version.published
+                  ? "bg-brand-500/10 text-brand-300"
+                  : "bg-base-800 text-fg-dim"
+              }`}
+            >
+              {version.published ? "Published" : "Draft"}
+            </span>
+            <button
+              type="button"
+              disabled={busy || (!version.published && !eligible)}
+              title={
+                !version.published && !eligible
+                  ? "This build cannot be published until it is verified."
+                  : undefined
+              }
+              onClick={() => onRequestToggle(version, !version.published)}
+              className="ml-auto rounded-lg border border-base-700 px-3 py-1 text-fg-muted transition-colors hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {busy ? "Working…" : version.published ? "Unpublish" : "Publish"}
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function Actions({
+  busy,
+  onEdit,
+  onDelete,
+}: {
   busy: boolean;
   onEdit: () => void;
-  onToggle: (app: ManagedApp, published: boolean) => void;
   onDelete: () => void;
 }) {
-  const live = app.publishedCount > 0;
   return (
     <div className="flex flex-wrap justify-end gap-2">
       <button
@@ -349,16 +491,9 @@ function Actions({
       </button>
       <button
         type="button"
-        onClick={() => onToggle(app, !live)}
-        disabled={busy || app.versionCount === 0}
-        className="rounded-lg border border-base-700 px-3 py-1.5 text-xs text-fg-muted transition-colors hover:text-fg disabled:opacity-50"
-      >
-        {busy ? "Working…" : live ? "Unpublish" : "Publish"}
-      </button>
-      <button
-        type="button"
         onClick={onDelete}
-        className="rounded-lg border border-danger-500/40 px-3 py-1.5 text-xs text-danger-300 transition-colors hover:bg-danger-500/10"
+        disabled={busy}
+        className="rounded-lg border border-danger-500/40 px-3 py-1.5 text-xs text-danger-300 transition-colors hover:bg-danger-500/10 disabled:opacity-50"
       >
         Delete
       </button>

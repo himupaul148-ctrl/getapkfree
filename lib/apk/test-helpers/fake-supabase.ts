@@ -39,7 +39,7 @@ export class FakeSupabase {
    * pre-check (also an "apps"/"select") must be seen failing exactly like
    * the authoritative lookup that follows it, not just the first of the two.
    */
-  forceError: { table: "apps" | "versions"; op: "select" | "insert"; error: PgError } | null = null;
+  forceError: { table: "apps" | "versions"; op: "select" | "insert" | "update"; error: PgError } | null = null;
 
   from(table: "apps" | "versions") {
     return new FakeQueryBuilder(this, table);
@@ -124,7 +124,7 @@ class FakeQueryBuilder {
     return this.rows().filter((row) => this.filters.every(([f, v]) => row[f] === v));
   }
 
-  private checkForcedError(op: "select" | "insert"): PgError | null {
+  private checkForcedError(op: "select" | "insert" | "update"): PgError | null {
     const forced = this.db.forceError;
     if (forced && forced.table === this.table && forced.op === op) return forced.error;
     return null;
@@ -176,6 +176,8 @@ class FakeQueryBuilder {
     }
 
     if (this.op === "update" && this.payload) {
+      const forced = this.checkForcedError("update");
+      if (forced) return { data: null, error: forced };
       for (const row of this.matching()) Object.assign(row, this.payload);
       return { data: null, error: null };
     }
