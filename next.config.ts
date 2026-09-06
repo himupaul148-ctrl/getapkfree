@@ -135,6 +135,28 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+
+  /**
+   * Permanent redirects for retired posts — evaluated by Next's router before
+   * any page or data fetch runs, so the old path never reaches
+   * app/blog/[slug]/page.tsx (or its Supabase lookup) at all. This is the
+   * first entry of its kind; the matching slug is also excluded from
+   * lib/blog.ts's getPublishedPosts() so it can't resurface in the sitemap,
+   * the RSS feed, or the blog listing while its database row still exists.
+   *
+   * `statusCode: 301` rather than `permanent: true` — Next maps `permanent`
+   * to 308, which is search-engine-equivalent but not the literal 301 this
+   * particular redirect was specified to return.
+   */
+  async redirects() {
+    return [
+      {
+        source: "/blog/check-apk-permissions-before-install",
+        destination: "/blog/what-are-apk-permissions-how-to-check",
+        statusCode: 301,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

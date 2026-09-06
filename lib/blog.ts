@@ -26,6 +26,18 @@ export const CATEGORY_LABELS: Record<BlogCategory, string> = {
 
 export const POSTS_PER_PAGE = 10;
 
+/**
+ * Slugs of posts that are retired via a permanent redirect (see the matching
+ * entry in next.config.ts) rather than deleted outright — the row stays in
+ * Supabase for the record, but must never resurface as its own listing,
+ * sitemap entry, or feed item now that its URL 301s elsewhere. Add to this
+ * list, and next.config.ts, for any future retire-and-redirect case; nothing
+ * here assumes there will only ever be one.
+ */
+const RETIRED_SLUGS: readonly string[] = [
+  "check-apk-permissions-before-install",
+];
+
 export type BlogPost = {
   id: string;
   slug: string;
@@ -78,7 +90,9 @@ async function fetchPublished(): Promise<BlogSummary[]> {
     .order("created_at", { ascending: false })
     .returns<BlogPost[]>();
 
-  return (data ?? []).map(({ content, ...rest }) => ({
+  return (data ?? [])
+    .filter((post) => !RETIRED_SLUGS.includes(post.slug))
+    .map(({ content, ...rest }) => ({
     ...rest,
     // The description is written for search snippets; fall back to the body
     // only when a post somehow has none.
@@ -121,11 +135,21 @@ export async function getPublishedSlugs(): Promise<string[]> {
 /**
  * Neighbours by publish date, for the footer links. Returns the post published
  * just before and just after this one.
+ *
+ * Fetches one extra row per side beyond what RETIRED_SLUGS could exclude,
+ * rather than filtering by slug in the query itself — a `.not("slug", "in",
+ * ...)` Postgrest filter is fragile to build correctly for an arbitrary-length
+ * list, while over-fetching by RETIRED_SLUGS.length and picking the first
+ * live row client-side handles any number of retired slugs, including one
+ * sitting immediately adjacent, without ever surfacing a redirect-only URL in
+ * the prev/next footer.
  */
 export async function getAdjacentPosts(post: BlogPost): Promise<{
   previous: { slug: string; title: string } | null;
   next: { slug: string; title: string } | null;
 }> {
+  const bufferSize = RETIRED_SLUGS.length + 1;
+
   const [olderRes, newerRes] = await Promise.all([
     supabase
       .from("blog_posts")
@@ -133,19 +157,22 @@ export async function getAdjacentPosts(post: BlogPost): Promise<{
       .eq("published", true)
       .lt("created_at", post.created_at)
       .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle<{ slug: string; title: string }>(),
+      .limit(bufferSize)
+      .returns<{ slug: string; title: string }[]>(),
     supabase
       .from("blog_posts")
       .select("slug, title")
       .eq("published", true)
       .gt("created_at", post.created_at)
       .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle<{ slug: string; title: string }>(),
+      .limit(bufferSize)
+      .returns<{ slug: string; title: string }[]>(),
   ]);
 
-  return { previous: olderRes.data, next: newerRes.data };
+  const firstLive = (rows: { slug: string; title: string }[] | null) =>
+    (rows ?? []).find((row) => !RETIRED_SLUGS.includes(row.slug)) ?? null;
+
+  return { previous: firstLive(olderRes.data), next: firstLive(newerRes.data) };
 }
 
 const APP_SELECT =
