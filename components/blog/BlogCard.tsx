@@ -22,7 +22,7 @@ export default function BlogCard({ post }: { post: BlogSummary }) {
           <div className="relative aspect-video w-full overflow-hidden bg-base-850">
             <Image
               src={post.featured_image_url}
-              alt=""
+              alt={post.title}
               fill
               sizes="(max-width: 768px) 100vw, 380px"
               loading="lazy"
