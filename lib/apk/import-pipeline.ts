@@ -24,6 +24,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   downloadSafely as downloadSafelyImpl,
   UnsafeUrlError,
+  type SafeDownloadOptions,
   type SafeDownloadResult,
 } from "../net/safe-fetch.ts";
 import {
@@ -39,10 +40,18 @@ import {
 
 const APK_CONTENT_TYPE = "application/vnd.android.package-archive";
 
+// app-info-parser (via parseApkFile) infers file type from the trailing
+// extension of the path it's given — it has no other way to tell an APK
+// from an IPA. safe-fetch.ts itself stays content-agnostic (it downloads
+// arbitrary URLs, not specifically APKs), so this pipeline is the one that
+// has to ask for the right extension explicitly, exactly as the local
+// upload route already does with its own "upload.apk" temp file.
+const APK_TEMP_FILE_NAME = "download.apk";
+
 export type ImportResult = { status: number; body: Record<string, unknown> };
 
 export type ImportPipelineDeps = {
-  downloadSafely: (url: string) => Promise<SafeDownloadResult>;
+  downloadSafely: (url: string, options?: SafeDownloadOptions) => Promise<SafeDownloadResult>;
   validateApkFile: (path: string, size: number) => Promise<unknown>;
   parseApkFile: (path: string) => Promise<ApkMetadata>;
   readFile: (path: string) => Promise<Buffer>;
@@ -134,7 +143,7 @@ export async function runApkUrlImport(
   try {
     // ---- 1. download (SSRF-safe, size/redirect/timeout-limited) ----
     try {
-      download = await deps.downloadSafely(parsedUrl.value);
+      download = await deps.downloadSafely(parsedUrl.value, { tempFileName: APK_TEMP_FILE_NAME });
     } catch (caught) {
       if (caught instanceof UnsafeUrlError) {
         return { status: 400, body: { error: caught.message } };

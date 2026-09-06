@@ -360,6 +360,37 @@ group("downloadSafely — size limits", () => {
     await result.cleanup();
     await assert.rejects(access(result.path), "temp file must be removed after cleanup");
   });
+
+  test("defaults to a content-agnostic temp file name when no caller opts in", async () => {
+    // The module downloads arbitrary attacker-influenced URLs and has no
+    // business assuming what kind of file is on the other end — a caller
+    // that needs a specific extension (app-info-parser inferring APK vs
+    // IPA from the filename, for instance) has to ask for it explicitly.
+    const routes = new Map<string, Route>([
+      ["https://start.example/default-name", { type: "body", chunks: [Buffer.from("x")] }],
+    ]);
+    const result = await downloadSafely("https://start.example/default-name", {
+      lookup: PUBLIC_LOOKUP,
+      transport: fakeTransport(routes),
+    });
+
+    assert.match(result.path, /download\.bin$/);
+    await result.cleanup();
+  });
+
+  test("uses the caller-requested temp file name when given one", async () => {
+    const routes = new Map<string, Route>([
+      ["https://start.example/named", { type: "body", chunks: [Buffer.from("x")] }],
+    ]);
+    const result = await downloadSafely("https://start.example/named", {
+      lookup: PUBLIC_LOOKUP,
+      transport: fakeTransport(routes),
+      tempFileName: "download.apk",
+    });
+
+    assert.match(result.path, /download\.apk$/);
+    await result.cleanup();
+  });
 });
 
 group("downloadSafely — timeout", () => {

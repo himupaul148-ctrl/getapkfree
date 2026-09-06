@@ -355,18 +355,41 @@ export const httpsTransport: Transport = (url, pinned, timeoutMs) =>
 
 /* --------------------------------------------------------------- sizing */
 
+const DEFAULT_TEMP_FILE_NAME = "download.bin";
+
+/**
+ * `streamToTempFile`'s file name is a plain path segment, not attacker
+ * input — every call site is a literal string in this codebase — but it
+ * still gets a cheap sanity check, since a broken caller silently writing
+ * outside the fresh temp directory would be an easy mistake to miss.
+ */
+function assertPlainFileName(name: string): void {
+  if (!name || name.includes("/") || name.includes("\\") || name.includes("..")) {
+    throw new Error(`Invalid temp file name: "${name}".`);
+  }
+}
+
 /**
  * Streams a response body to a fresh temp file, enforcing `maxBytes` as
  * bytes actually arrive — never buffering the whole response in memory
  * first. Exceeding the cap aborts the source stream immediately and
  * removes the partial file; nothing partial is ever handed back as a
  * result.
+ *
+ * `fileName` defaults to a content-agnostic name — this module downloads
+ * arbitrary attacker-influenced URLs and has no business assuming what kind
+ * of file is on the other end. A caller that hands the result to something
+ * which infers type from the filename's extension (as `app-info-parser`
+ * does) is responsible for passing the extension it actually needs.
  */
 export function streamToTempFile(
   body: NodeJS.ReadableStream,
   maxBytes: number,
   destroySource: () => void,
+  fileName: string = DEFAULT_TEMP_FILE_NAME,
 ): Promise<{ path: string; size: number }> {
+  assertPlainFileName(fileName);
+
   return new Promise((resolve, reject) => {
     let dir: string | null = null;
     let settled = false;
@@ -388,7 +411,7 @@ export function streamToTempFile(
           return;
         }
         dir = createdDir;
-        const filePath = join(dir, "download.bin");
+        const filePath = join(dir, fileName);
         const out = createWriteStream(filePath);
         let received = 0;
 
@@ -436,6 +459,14 @@ export type SafeDownloadOptions = {
   timeoutMs?: number;
   /** Hard cap on the downloaded body, checked against Content-Length and while streaming. Default 100MB. */
   maxBytes?: number;
+  /**
+   * Name of the temp file the downloaded bytes are written to. Defaults to
+   * a content-agnostic name — pass this when the caller will hand the
+   * result to something that infers file type from the extension (like
+   * `app-info-parser`), since this module has no opinion on what's being
+   * downloaded.
+   */
+  tempFileName?: string;
   /** Injection point for tests; production code should never need to pass this. */
   lookup?: LookupFn;
   /** Injection point for tests; production code should never need to pass this. */
@@ -512,6 +543,7 @@ export async function downloadSafely(
       response.body,
       maxBytes,
       response.destroy,
+      options.tempFileName,
     );
 
     return {

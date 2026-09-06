@@ -234,6 +234,32 @@ group("runApkUrlImport — the happy path", () => {
     assert.equal(body.version.permissionsCount, 1);
   });
 
+  test("requests an .apk-suffixed temp file from downloadSafely (regression: production shipped with a .bin default)", async () => {
+    // The production failure this guards against: safe-fetch.ts's own
+    // default temp file name ("download.bin") is fine for a
+    // content-agnostic downloader, but app-info-parser infers APK-vs-IPA
+    // purely from the filename extension. If this call site ever stops
+    // passing tempFileName explicitly, every real import silently breaks
+    // at the parse step while every mocked test here keeps passing.
+    const fake = new FakeSupabase();
+    let receivedOptions: { tempFileName?: string } | undefined;
+    const deps = happyDeps({
+      downloadSafely: async (_url, options) => {
+        receivedOptions = options;
+        return {
+          path: "/fake/tmp/download.apk",
+          size: 1024,
+          contentType: "application/vnd.android.package-archive",
+          cleanup: async () => {},
+        };
+      },
+    });
+
+    await runApkUrlImport("https://example.com/app.apk", client(fake), deps);
+
+    assert.equal(receivedOptions?.tempFileName, "download.apk");
+  });
+
   test("reuses an existing app by package_name and adds a new version, without touching its metadata", async () => {
     const fake = new FakeSupabase();
     fake.apps.push({
