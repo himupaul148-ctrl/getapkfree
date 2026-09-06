@@ -68,7 +68,10 @@ export async function generateMetadata({
     title: { absolute: "GetApkFree Blog — App guides and recommendations" },
     description:
       "Guides, tips and app recommendations from the GetApkFree team. Find the best open-source Android apps for privacy, productivity, gaming and more.",
-    alternates: { canonical: url },
+    alternates: {
+      canonical: url,
+      types: { "application/rss+xml": absolute("/blog/feed.xml") },
+    },
     robots,
     openGraph: {
       type: "website",

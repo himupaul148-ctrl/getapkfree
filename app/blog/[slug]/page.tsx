@@ -48,7 +48,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     // which would otherwise append the site name a second time.
     title: { absolute: `${post.title} — ${SITE_NAME} Blog` },
     description,
-    alternates: { canonical: url },
+    alternates: {
+      canonical: url,
+      types: { "application/rss+xml": absolute("/blog/feed.xml") },
+    },
     openGraph: {
       type: "article",
       url,
