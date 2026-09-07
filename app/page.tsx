@@ -100,10 +100,21 @@ export default async function HomePage({
           Free apps • Safe downloads
         </span>
         <h1 className="mt-5 text-4xl font-extrabold tracking-tight text-balance sm:text-5xl lg:text-6xl">
-          Free, Open-Source Android Apps —{" "}
-          <span className="bg-gradient-to-r from-brand-400 to-azure-400 bg-clip-text text-transparent">
-            Safe and Scanned
-          </span>
+          {filters.category ? (
+            <>
+              {filters.category} Apps —{" "}
+              <span className="bg-gradient-to-r from-brand-400 to-azure-400 bg-clip-text text-transparent">
+                Free and Open-Source
+              </span>
+            </>
+          ) : (
+            <>
+              Free, Open-Source Android Apps —{" "}
+              <span className="bg-gradient-to-r from-brand-400 to-azure-400 bg-clip-text text-transparent">
+                Safe and Scanned
+              </span>
+            </>
+          )}
         </h1>
         <p className="mt-5 text-lg leading-relaxed text-fg-muted">
           Download legitimate APKs with confidence. Every build is versioned,
