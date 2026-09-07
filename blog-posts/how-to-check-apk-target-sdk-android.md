@@ -35,7 +35,7 @@ Android's own Settings app generally doesn't expose granular package metadata li
 
 - **APK information or metadata tools** that read a package's manifest directly, the same kind of inspection covered in our guide on [checking an APK's version and package details](/blog/how-to-check-apk-version-package-name-details).
 - **APK analysis or inspection utilities**, including more developer-oriented tools, for a fuller metadata breakdown.
-- **A trusted listing page**, on the occasions one explicitly states the target SDK rather than leaving it out.
+- **A trusted listing page**, on the occasions one explicitly states the target SDK rather than leaving it out — [our own app catalogue](/apps) is one such source.
 
 An APK's filename is not reliable proof of its target SDK — naming conventions vary entirely by developer, distributor, and build process, so nothing about a filename confirms this value one way or the other.
 

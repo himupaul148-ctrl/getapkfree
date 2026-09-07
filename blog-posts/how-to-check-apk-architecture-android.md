@@ -45,6 +45,7 @@ Identifying what an APK itself supports takes a bit more digging, since there's 
 - **Filenames** sometimes include the architecture directly — something like `app-arm64-v8a.apk` or `app_armeabi-v7a.apk` — but this isn't a universal convention, and plenty of files carry no architecture hint in their name at all.
 - **Download labels or release descriptions** on a distribution page often state which architecture a given file targets, when multiple options are offered.
 - **APK metadata or inspection tools** that read a package's manifest can show supported native libraries directly, which is the most reliable method when a filename or label doesn't make it obvious. Combined with a package's [version and other details](/blog/how-to-check-apk-version-package-name-details), this gives you a fuller picture of exactly what you're about to install.
+- **A catalogue that lists architecture per build**, such as [GetApkFree's app listings](/apps), so you're reading a stated fact rather than inferring one from a filename.
 
 Common labels to recognize: `arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`, and `universal` for a build meant to cover several architectures at once.
 

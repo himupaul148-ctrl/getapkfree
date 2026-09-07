@@ -11,7 +11,7 @@ You've got an APK file sitting on your phone and you're ready to install it — 
 
 ## Before You Start
 
-Make sure you actually have the APK file already downloaded and accessible on your device — this guide picks up from there, not from finding a file to download. It's worth a brief note before you go further: use a source you trust for the file itself. This guide focuses on the mechanics of installing; if you want the fuller picture on evaluating a file before you install it, see our guide on [installing APK files safely](/blog/how-to-install-apk-files-on-android-safely).
+Make sure you actually have the APK file already downloaded and accessible on your device — this guide picks up from there, not from finding a file to download. If you're starting from scratch, [GetApkFree's app catalogue](/apps) is a reasonable place to find one. It's worth a brief note before you go further: use a source you trust for the file itself. This guide focuses on the mechanics of installing; if you want the fuller picture on evaluating a file before you install it, see our guide on [installing APK files safely](/blog/how-to-install-apk-files-on-android-safely).
 
 ## Step 1: Find the APK File
 

@@ -83,7 +83,7 @@ These are two different messages with overlapping but distinct causes:
 | Typical cause | Unreadable/incompatible file structure | Signature conflict, storage, or compatibility |
 | File itself readable? | No — Android can't process it | Usually yes — Android reads it, then blocks the install |
 
-The troubleshooting steps overlap (a fresh download and a compatibility check help with both), but they're not the same failure. Our dedicated guide on [fixing "App not installed"](/blog/fix-app-not-installed-error-android) covers that error's own causes in full.
+The troubleshooting steps overlap (a fresh download and a compatibility check help with both), but they're not the same failure. Our dedicated guide on [fixing "App not installed"](/blog/fix-app-not-installed-error-android) covers that error's own causes in full — or see [why Android says "App not installed"](/blog/why-apk-says-app-not-installed-causes-fixes) if you want to work out which specific cause applies before jumping to fixes.
 
 ## Parsing Error vs APK Safety
 

@@ -64,7 +64,7 @@ If you use a third-party inspection app for this, apply the same standard as any
 6. Check its package identity.
 7. Verify the source is one you trust before downloading anything.
 
-Our guide on [checking an APK's version and package details](/blog/how-to-check-apk-version-package-name-details) covers steps 5 and 6 in more depth.
+Our guide on [checking an APK's version and package details](/blog/how-to-check-apk-version-package-name-details) covers steps 5 and 6 in more depth. If you'd rather not check architecture manually for every file, [browsing GetApkFree's own catalogue](/apps) gets you builds with this information already listed.
 
 ## What If There Is Only One APK?
 

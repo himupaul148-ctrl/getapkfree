@@ -49,7 +49,7 @@ Android needs working space to process an installation, not just enough room for
 
 ## Where Can You Find Compatibility Information?
 
-Compatibility details might show up in several places: an APK-inspection tool reading the package's own metadata, a source's download page, labels in the filename (architecture or variant tags, for instance), or your device's own settings. It's worth being direct about one thing here: **the filename alone is not always sufficient** — it's a hint, not a verified fact, and the fields read from inside the package or stated by a trustworthy source are what actually matter.
+Compatibility details might show up in several places: an APK-inspection tool reading the package's own metadata, a source's download page, labels in the filename (architecture or variant tags, for instance), or your device's own settings. It's worth being direct about one thing here: **the filename alone is not always sufficient** — it's a hint, not a verified fact, and the fields read from inside the package or stated by a trustworthy source are what actually matter. A catalogue that already lists this information per build — like [GetApkFree's own app index](/apps) — saves you from having to dig through metadata manually for every file.
 
 ## A Practical APK Compatibility Checklist
 

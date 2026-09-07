@@ -44,7 +44,7 @@ Interfaces genuinely differ across brands, so treat these as general places to l
 For the file itself, a few practical approaches:
 
 - **APK detail or metadata tools** that read a package's manifest can show its declared minimum SDK directly, alongside other details like version and package name — the same inspection covered in our guide on [checking an APK's version and other details](/blog/how-to-check-apk-version-package-name-details).
-- **A trusted listing page**, when one explicitly states the requirement.
+- **A trusted listing page**, when one explicitly states the requirement — [GetApkFree's own app catalogue](/apps) is one example, listing the minimum Android version alongside each build.
 - **Package metadata inspection** more generally, for anyone comfortable digging deeper than a summary.
 
 A filename alone isn't reliable proof of an APK's minimum Android version — nothing requires a developer to encode that into the filename, so treat any apparent hint there as unconfirmed until you've checked the actual metadata.
