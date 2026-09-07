@@ -56,7 +56,12 @@ async function fetchCatalogue(): Promise<{ apps: AppSummary[]; error: string | n
     .returns<AppWithVersions[]>();
 
   if (error) return { apps: [], error: error.message };
-  return { apps: (data ?? []).map(toSummary), error: null };
+  return {
+    apps: (data ?? [])
+      .map(toSummary)
+      .filter((app) => app.latestVersion !== null),
+    error: null,
+  };
 }
 
 /**
