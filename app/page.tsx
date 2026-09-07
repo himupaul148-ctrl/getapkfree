@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import HomeSections from "@/components/HomeSections";
+import { PAGE_SIZE as CATEGORY_PAGE_SIZE } from "@/components/catalogue/CategoryAppList";
 import {
   AppGridSkeleton,
   CategoryGridSkeleton,
   ListSkeleton,
   SectionHeadingSkeleton,
 } from "@/components/Skeletons";
+import { getCatalogue } from "@/lib/catalogue";
+import { normalisePage } from "@/lib/blog";
 import {
   normaliseAndroid,
   normaliseCategory,
@@ -26,6 +29,7 @@ type SearchParams = Promise<{
   category?: string;
   android?: string;
   sort?: string;
+  page?: string;
 }>;
 
 /**
@@ -45,10 +49,28 @@ export async function generateMetadata({
   const filtered = Boolean(category || search);
 
   if (category) {
+    // Mirrors /apps' own pagination pattern: page 1 is canonical at the bare
+    // category URL (no `?page=1`, which would be a second URL for the same
+    // content); a later page is self-canonical at its own `?page=N`, and an
+    // out-of-range or invalid page clamps down to the last real page rather
+    // than 404ing or canonicalising to something that doesn't exist.
+    const { apps: catalogueApps } = await getCatalogue();
+    const categoryCount = catalogueApps.filter((a) => a.category === category).length;
+    const totalPages = Math.max(1, Math.ceil(categoryCount / CATEGORY_PAGE_SIZE));
+    const page = Math.min(normalisePage(params.page), totalPages);
+
+    const canonicalPath =
+      page > 1
+        ? `/?category=${encodeURIComponent(category)}&page=${page}`
+        : `/?category=${encodeURIComponent(category)}`;
+
     return {
-      title: `${category} Apps — Free Open-Source APKs`,
+      title:
+        page > 1
+          ? `${category} Apps — Page ${page} | Free Open-Source APKs`
+          : `${category} Apps — Free Open-Source APKs`,
       description: `Browse free, open-source Android ${category.toLowerCase()} apps. Every build is versioned, malware-scanned and published with its changelog.`,
-      alternates: { canonical: absolute(`/?category=${encodeURIComponent(category)}`) },
+      alternates: { canonical: absolute(canonicalPath) },
       robots: { index: true, follow: true },
     };
   }
@@ -80,6 +102,7 @@ export default async function HomePage({
     android?: string;
     sort?: string;
     source?: string;
+    page?: string;
   }>;
 }) {
   const params = await searchParams;
@@ -91,6 +114,10 @@ export default async function HomePage({
     sort: normaliseSort(params.sort),
     source: normaliseSource(params.source),
   };
+  // Only meaningful when a category is active — HomeSections ignores it
+  // otherwise. Clamping against the category's real page count happens
+  // there, where the category's app count is already being computed.
+  const categoryPage = normalisePage(params.page);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6">
@@ -123,7 +150,7 @@ export default async function HomePage({
       </section>
 
       <Suspense fallback={<HomeSkeleton />}>
-        <HomeSections filters={filters} />
+        <HomeSections filters={filters} categoryPage={categoryPage} />
       </Suspense>
     </div>
   );

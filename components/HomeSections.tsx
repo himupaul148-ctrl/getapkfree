@@ -2,19 +2,31 @@ import Link from "next/link";
 import AppCard from "@/components/AppCard";
 import AppCarousel, { CAROUSEL_ITEM } from "@/components/AppCarousel";
 import CatalogueSection from "@/components/catalogue/CatalogueSection";
+import CategoryAppList, {
+  PAGE_SIZE as CATEGORY_PAGE_SIZE,
+} from "@/components/catalogue/CategoryAppList";
 import CategoryCards from "@/components/catalogue/CategoryCards";
 import FilterProvider from "@/components/catalogue/FilterProvider";
 import { getCatalogue } from "@/lib/catalogue";
-import { formatRelative } from "@/lib/format";
+import { formatRelative, trendingScore } from "@/lib/format";
 import { CATEGORIES } from "@/lib/types";
 import type { Filters } from "@/components/catalogue/FilterProvider";
+import type { AppSummary } from "@/lib/types";
 
 /**
  * Everything on the homepage that needs Supabase. Split out of page.tsx so it
  * can sit behind its own <Suspense> boundary — a root app/loading.tsx would
  * also swallow /about, /how-to-install and every other page.
  */
-export default async function HomeSections({ filters }: { filters: Filters }) {
+export default async function HomeSections({
+  filters,
+  categoryPage,
+}: {
+  filters: Filters;
+  /** Normalised, unclamped page number for the category browse list below —
+      meaningless (and ignored) unless filters.category is set. */
+  categoryPage: number;
+}) {
   const { apps, error } = await getCatalogue();
 
   if (error) {
@@ -65,6 +77,36 @@ export default async function HomeSections({ filters }: { filters: Filters }) {
   const counts = Object.fromEntries(
     CATEGORIES.map((c) => [c, apps.filter((a) => a.category === c).length]),
   );
+
+  /*
+   * A real, crawlable, paginated browse list for the active category —
+   * separate from CatalogueSection's own interactive grid, which never
+   * server-renders past its first PAGE_SIZE results. Only computed (and
+   * only rendered below) when the category has more apps than a single
+   * CatalogueSection page already shows; smaller categories are already
+   * fully covered by that first page, so this would just repeat it.
+   *
+   * Sorted the same way CatalogueSection defaults to ("trending"), so page
+   * 1 here lines up with what a visitor already sees above before this
+   * section starts covering the rest.
+   */
+  let categoryPageApps: AppSummary[] = [];
+  let categoryTotalPages = 1;
+  let categoryPageClamped = 1;
+  if (filters.category) {
+    const categoryApps = apps.filter((a) => a.category === filters.category);
+    if (categoryApps.length > CATEGORY_PAGE_SIZE) {
+      const sorted = [...categoryApps].sort(
+        (a, b) =>
+          trendingScore(b.downloadCount, b.lastUpdated) -
+          trendingScore(a.downloadCount, a.lastUpdated),
+      );
+      categoryTotalPages = Math.max(1, Math.ceil(sorted.length / CATEGORY_PAGE_SIZE));
+      categoryPageClamped = Math.min(categoryPage, categoryTotalPages);
+      const start = (categoryPageClamped - 1) * CATEGORY_PAGE_SIZE;
+      categoryPageApps = sorted.slice(start, start + CATEGORY_PAGE_SIZE);
+    }
+  }
 
   return (
     /* The category cards and the catalogue share one filter state, so a
@@ -140,6 +182,15 @@ export default async function HomeSections({ filters }: { filters: Filters }) {
       </div>
 
       <CatalogueSection apps={apps} />
+
+      {filters.category && categoryPageApps.length > 0 && (
+        <CategoryAppList
+          apps={categoryPageApps}
+          category={filters.category}
+          page={categoryPageClamped}
+          totalPages={categoryTotalPages}
+        />
+      )}
 
       {recentlyUpdated.length > 0 && (
         <section id="recently-updated" className="mt-20">
