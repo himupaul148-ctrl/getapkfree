@@ -34,34 +34,7 @@ None of these are edge cases — they're common, everyday reasons people install
 
 ## How to Check Whether an APK Is Trustworthy
 
-Before you install anything, it's worth spending a minute checking the source. A few minutes here can save you from a genuinely bad experience.
-
-### Check the source, not just the file
-
-The single biggest factor in APK safety is where you downloaded it from. Prefer:
-
-- The developer's own official website or domain
-- The developer's official GitHub (or similar) releases page
-- F-Droid, for open-source apps
-- A reputable APK catalogue that publishes checksums or scan results, rather than an anonymous file-sharing link — our own [roundup of lightweight open-source apps](/blog/lightweight-android-apps-2026) is a reasonable starting point if you're not sure what to look for
-
-Be wary of APKs linked from random forum comments, pop-up ads, or "download" buttons on unrelated websites. A file with no clear publisher and no way to verify who built it is a bad sign, even if it claims to be a copy of a well-known app.
-
-### Match the publisher and package name
-
-Every Android app has a **package name** — something like `com.example.app` — that stays consistent across versions and is tied to the developer's signing key. If you're updating an app you already trust, the package name should match what you had before. A sudden mismatch is a red flag.
-
-### Read the permissions before you install
-
-Android shows you the permissions an app requests, either before installation or the first time it needs them. Ask whether the request makes sense for what the app does — a flashlight app asking for your contacts or SMS access has no good reason to need them.
-
-### Be realistic about file size
-
-A wildly different file size compared to the app's listing elsewhere (a "calculator" that's 80MB, say) is worth a second look. It doesn't automatically mean something is wrong, but it's a reason to check further.
-
-### Avoid modified or "cracked" versions of paid apps
-
-APKs advertised as unlocking paid features for free, or as "cracked" versions of premium apps, are one of the most common ways malware gets distributed. Beyond the issue of installing unauthorized copies of paid software, these files are frequently modified to include tracking, ads, or worse. If an app is paid, get it from the Play Store, the developer's official store, or another authorized source — not from a cracked APK. We don't host cracked or pirated builds here either; see our [DMCA policy](/dmca) for how we handle copyright and takedown requests.
+Before you get to the installation steps below, it's worth making sure the file itself deserves your trust — where it came from, who actually built it, and whether its permissions match what it claims to do. That's a big enough topic to cover properly on its own: see our guide on [how to tell if an APK is safe](/blog/how-to-check-if-apk-is-safe) for the full framework, including how to check the source, verify the developer, and scan the file before installing.
 
 ## Step-by-Step: How to Install an APK on Android
 
@@ -92,12 +65,9 @@ A few good habits: only enable this for the specific app you're actually using, 
 
 ## How to Scan an APK Before Installing It
 
-Checking the source is the first layer of protection. Scanning the file itself is the second.
+Scanning a file for malware and confirming you trust it belongs before you tap install, not after. Our guide on [evaluating whether an APK is safe](/blog/how-to-check-if-apk-is-safe) covers how to scan with a multi-engine tool, compare checksums, and read Play Protect's warnings correctly — worth a look if you haven't already.
 
-1. **Let Google Play Protect do its job.** It runs in the background on most Android devices and scans apps at install time, even ones installed outside the Play Store. Don't disable it just to get past a warning — read the warning first.
-2. **Upload the file to a multi-engine scanner** like VirusTotal before installing, especially for anything from a source you're not fully sure about. It checks against dozens of antivirus engines at once and is free.
-3. **Compare checksums if the developer provides one.** Some official release pages publish a SHA-256 hash alongside the APK. If your downloaded file's hash doesn't match, don't install it.
-4. **Prefer catalogues that scan before publishing.** Some APK directories, including this one, run every hosted build through malware scanning and show the scan status on the app's page — a useful extra layer, not a replacement for checking the source.
+If Android or Play Protect blocks the install itself, don't just dismiss the warning — the troubleshooting section below covers what a block usually means.
 
 ## Common Android Installation Errors and Solutions
 
@@ -145,14 +115,7 @@ Uninstalling removes the app and, in most cases, its data. If you want to reinst
 
 ## Security Mistakes to Avoid
 
-A short list of habits worth avoiding:
-
-- **Don't permanently disable Play Protect** just to get past a single warning — review the warning instead.
-- **Don't install cracked or "modded" versions of paid apps.** These are a common vector for malware, precisely because people expect them to trip warnings and dismiss them anyway.
-- **Don't grant permissions "just in case."** If an app asks for something unrelated to its function, decline or don't install it.
-- **Don't download APKs from ads or pop-ups.** Legitimate developers don't distribute apps through intrusive ad placements.
-- **Don't ignore mismatched signatures.** If Android refuses to update an app over a signature mismatch, that's the system doing its job.
-- **Don't skip updates on sideloaded apps.** They don't update automatically — you're responsible for checking back for security fixes.
+One habit specific to sideloading is worth calling out: unlike Play Store apps, a sideloaded app doesn't update itself automatically, so it's on you to check back for new versions and security fixes.
 
 ## Frequently Asked Questions
 
