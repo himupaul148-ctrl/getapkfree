@@ -130,6 +130,15 @@ export default async function HomeSections({ filters }: { filters: Filters }) {
 
       <CategoryCards counts={counts} />
 
+      <div className="mt-16 flex justify-end">
+        <Link
+          href="/apps"
+          className="text-sm font-medium text-brand-400 hover:underline"
+        >
+          Browse all apps →
+        </Link>
+      </div>
+
       <CatalogueSection apps={apps} />
 
       {recentlyUpdated.length > 0 && (
