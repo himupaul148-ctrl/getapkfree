@@ -265,6 +265,18 @@ export default async function AppDetailPage({ params }: Props) {
           Read the install guide
         </Link>{" "}
         before opening an APK.
+        {latest && (
+          <>
+            {" "}Not sure this build supports your phone?{" "}
+            <Link
+              href="/blog/apk-minimum-android-version-how-to-check"
+              className="text-brand-400 hover:underline"
+            >
+              See how to check your device&rsquo;s Android version
+            </Link>
+            .
+          </>
+        )}
       </p>
 
       {/* ---- Related apps ---- */}
