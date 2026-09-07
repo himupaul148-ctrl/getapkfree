@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import BlogJsonLd from "@/components/blog/BlogJsonLd";
+import BreadcrumbJsonLd from "@/components/BreadcrumbJsonLd";
 import BlogViewCounter from "@/components/blog/BlogViewCounter";
 import RelatedApps from "@/components/blog/RelatedApps";
 import ShareButtons from "@/components/blog/ShareButtons";
@@ -88,6 +89,13 @@ export default async function BlogPostPage({ params }: Props) {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
       <BlogJsonLd post={post} />
+      <BreadcrumbJsonLd
+        items={[
+          { name: "Home", url: absolute("/") },
+          { name: "Blog", url: absolute("/blog") },
+          { name: post.title, url: absolute(`/blog/${post.slug}`) },
+        ]}
+      />
       <BlogViewCounter
         slug={post.slug}
         title={post.title}

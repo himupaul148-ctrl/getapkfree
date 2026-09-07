@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import AppCard from "@/components/AppCard";
 import AppJsonLd from "@/components/AppJsonLd";
 import AppIcon from "@/components/AppIcon";
+import BreadcrumbJsonLd from "@/components/BreadcrumbJsonLd";
 import FavoriteToggle from "@/components/FavoriteToggle";
 import DownloadButton from "@/components/DownloadButton";
 import { downloadSourceLabel, hostOf } from "@/lib/sources";
@@ -113,6 +114,20 @@ export default async function AppDetailPage({ params }: Props) {
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
       <AppJsonLd app={app} latest={latest} />
+      <BreadcrumbJsonLd
+        items={[
+          { name: "Home", url: absolute("/") },
+          ...(app.category
+            ? [
+                {
+                  name: app.category,
+                  url: absolute(`/?category=${encodeURIComponent(app.category)}`),
+                },
+              ]
+            : []),
+          { name: app.name, url: absolute(`/app/${app.slug}`) },
+        ]}
+      />
       <Link
         href="/"
         className="text-sm text-fg-dim transition-colors hover:text-brand-400"

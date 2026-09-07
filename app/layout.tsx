@@ -5,8 +5,10 @@ import FavoritesProvider from "@/components/FavoritesProvider";
 import SessionProvider from "@/components/SessionProvider";
 import SiteFooter from "@/components/SiteFooter";
 import { AdSense, Analytics } from "@/components/Analytics";
+import OrganizationJsonLd from "@/components/OrganizationJsonLd";
 import PageViewTracker from "@/components/PageViewTracker";
 import ThemeScript from "@/components/ThemeScript";
+import WebSiteJsonLd from "@/components/WebSiteJsonLd";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/seo";
 import "./globals.css";
 
@@ -60,6 +62,8 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <ThemeScript />
+        <OrganizationJsonLd />
+        <WebSiteJsonLd />
       </head>
       <body className="flex min-h-screen flex-col">
         <a

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import BlogCard from "@/components/blog/BlogCard";
 import BlogFilters from "@/components/blog/BlogFilters";
+import BreadcrumbJsonLd from "@/components/BreadcrumbJsonLd";
 import {
   CATEGORY_LABELS,
   POSTS_PER_PAGE,
@@ -132,6 +133,12 @@ export default async function BlogIndexPage({
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
+      <BreadcrumbJsonLd
+        items={[
+          { name: "Home", url: absolute("/") },
+          { name: "Blog", url: absolute("/blog") },
+        ]}
+      />
       <header className="max-w-3xl">
         <p className="font-mono text-sm text-brand-400">GetApkFree Blog</p>
         <h1 className="mt-3 text-4xl font-extrabold tracking-tight text-balance sm:text-5xl">
