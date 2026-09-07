@@ -78,11 +78,11 @@ A few examples of requests worth a second look:
 - **A calculator app requesting SMS access** has no obvious reason to need it.
 - **A simple wallpaper app requesting contacts, call logs, or location** is asking for more than its stated purpose requires.
 
-At the same time, it's important not to overcorrect: plenty of legitimate apps genuinely need permissions that sound sensitive at first glance. A messaging app needs contacts. A navigation app needs location. A photo editor needs storage access. Unusual permissions are a reason to ask "does this make sense for what the app does," not an automatic sign of malware on their own.
+At the same time, it's important not to overcorrect: plenty of legitimate apps genuinely need permissions that sound sensitive at first glance. A messaging app needs contacts. A navigation app needs location. A photo editor needs storage access. Unusual permissions are a reason to ask "does this make sense for what the app does," not an automatic sign of malware on their own — [learn how to evaluate APK permissions](/blog/what-are-apk-permissions-how-to-check) for a fuller framework.
 
 ## Verify the App's Identity
 
-Every Android app has a **package name** — something like `com.example.app` — tied to the developer's signing key and consistent across versions. It's worth checking a few things here:
+Every Android app has a **package name** — something like `com.example.app` — tied to the developer's signing key and consistent across versions. [Learn how APK signatures work](/blog/what-is-an-apk-signature-android-app-signing) for more on what that signing key actually establishes. It's worth checking a few things here:
 
 - **Does the package name match what you'd expect** for this app, rather than something generic or unrelated?
 - **Is the developer identity consistent** with what you saw on the download page?
