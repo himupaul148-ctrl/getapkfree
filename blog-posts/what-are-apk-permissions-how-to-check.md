@@ -120,7 +120,7 @@ No. Permissions are one signal among several, not a verdict:
 - It doesn't prove the APK hasn't been modified since it was built.
 - It doesn't guarantee the app is free of anything harmful.
 
-Permissions are worth reading alongside the source, the developer's identity, the package name, the version, and — when authenticity genuinely matters — the [APK's signature](/blog/what-is-an-apk-signature-android-app-signing). No single check proves safety alone; together, they give a reasonably informed picture.
+Permissions are worth reading alongside the source, the developer's identity, the package name, the version, and — when authenticity genuinely matters — the [APK's signature](/blog/what-is-an-apk-signature-android-app-signing). No single check proves safety alone; together, they give a reasonably informed picture — see our guide on [how to evaluate whether an APK is safe](/blog/how-to-check-if-apk-is-safe) for the fuller picture.
 
 ## What Should You Do If an APK Requests Unusual Permissions?
 
