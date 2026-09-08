@@ -21,7 +21,7 @@ import {
   getRelatedApps,
 } from "@/lib/catalogue";
 import { formatBytes, formatCount, formatDate, formatRelative } from "@/lib/format";
-import { absolute, clampDescription, SITE_NAME } from "@/lib/seo";
+import { absolute, appDescriptionSuffix, clampDescription, SITE_NAME } from "@/lib/seo";
 
 // Rebuilt at most once an hour. App metadata changes rarely, so this serves
 // from cache instead of hitting Supabase on every request, and gives the CDN
@@ -65,7 +65,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   ].filter(Boolean).join(" · ");
 
   const description = clampDescription(
-    [app.description, facts && `(${facts})`, "Free, open-source, malware-scanned."]
+    [app.description, facts && `(${facts})`, appDescriptionSuffix(app.source_type)]
       .filter(Boolean)
       .join(" "),
   );

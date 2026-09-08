@@ -1,3 +1,5 @@
+import type { SourceType } from "@/lib/sources";
+
 /**
  * One source of truth for the canonical origin.
  *
@@ -27,4 +29,23 @@ export function clampDescription(text: string, max = 160): string {
   const cut = clean.slice(0, max - 1);
   const lastSpace = cut.lastIndexOf(" ");
   return `${(lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
+}
+
+/**
+ * The closing clause of an app detail page's meta description — what
+ * GetApkFree actually did with this build, not a blanket claim repeated for
+ * every listing.
+ *
+ * "Open-source" and "malware-scanned" are only true for the site's own
+ * F-Droid builds. An external listing is neither: it is the vendor's own
+ * proprietary app, and the page body already says outright that GetApkFree
+ * "does not host this app" and it is "not one of the builds we scan
+ * ourselves" (see app/app/[slug]/page.tsx). A meta description repeating the
+ * F-Droid claim for one of these would contradict the page it sits on — and
+ * be indexed as fact regardless.
+ */
+export function appDescriptionSuffix(sourceType: SourceType): string {
+  return sourceType === "external"
+    ? "Free download, linked to its official source."
+    : "Free, open-source, malware-scanned.";
 }
