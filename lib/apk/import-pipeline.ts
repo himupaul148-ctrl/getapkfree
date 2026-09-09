@@ -9,11 +9,17 @@
  * Every value that reaches the database comes from either the URL the admin
  * supplied or from what `downloadSafely` + `validateApkFile` + `parseApkFile`
  * independently determined about the bytes actually fetched — never from
- * arbitrary request-body fields. The created version is always
- * `scan_status: "pending"`, `published: false`; no live malware scan exists
- * yet (see scripts/import-fdroid.mjs's offline `scanByHash`, which this
- * route does not call), so nothing here is allowed to invent a verdict.
+ * arbitrary request-body fields. The created version's scan status comes
+ * from a VirusTotal hash lookup of those same downloaded bytes (see
+ * ./virustotal.ts, shared with scripts/import-fdroid.mjs's own scanner) —
+ * hash-only, never an upload, so it only ever produces a real verdict for a
+ * file VirusTotal has already scanned. Anything else — a miss, a lookup
+ * failure, no key configured — leaves the build at `scan_status: "pending"`,
+ * `published: false`; nothing here is allowed to invent a verdict, and
+ * `published` is never set true by this pipeline regardless of verdict —
+ * publishing stays a separate, deliberate admin action.
  */
+import { createHash } from "node:crypto";
 import { randomUUID as nodeRandomUUID } from "node:crypto";
 import { readFile as fsReadFile } from "node:fs/promises";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -37,6 +43,7 @@ import {
   createVersion,
   findOrCreateApp,
 } from "./save-build.ts";
+import { createVirusTotalScanner, type ScanVerdict } from "./virustotal.ts";
 
 const APK_CONTENT_TYPE = "application/vnd.android.package-archive";
 
@@ -56,7 +63,24 @@ export type ImportPipelineDeps = {
   parseApkFile: (path: string) => Promise<ApkMetadata>;
   readFile: (path: string) => Promise<Buffer>;
   randomUUID: () => string;
+  /**
+   * Resolves a verdict for the downloaded file's own SHA-256. Any failure
+   * (thrown or rejected) must never fail the import — the caller catches it
+   * and falls back to "pending", exactly as a hash VirusTotal has no opinion
+   * on would resolve anyway.
+   */
+  scanByHash: (sha256: string) => Promise<ScanVerdict>;
 };
+
+/**
+ * A fresh scanner per call — the daily budget/exhaustion state is
+ * per-process bookkeeping, not something one URL import should share with
+ * the next (see createVirusTotalScanner's own doc comment).
+ */
+async function defaultScanByHash(sha256: string): Promise<ScanVerdict> {
+  const scanner = createVirusTotalScanner({ apiKey: process.env.VIRUSTOTAL_API_KEY });
+  return scanner.scanByHash(sha256);
+}
 
 // Exported so a test can assert this route actually wires up the real
 // SSRF-safe downloader/validator/parser rather than, say, global fetch() —
@@ -68,6 +92,7 @@ export const defaultDeps: ImportPipelineDeps = {
   parseApkFile: parseApkFileImpl,
   readFile: fsReadFile,
   randomUUID: nodeRandomUUID,
+  scanByHash: defaultScanByHash,
 };
 
 /** Everything the route needs from the body other than the URL is deliberately never read here. */
@@ -209,6 +234,22 @@ export async function runApkUrlImport(
       data: { publicUrl },
     } = supabase.storage.from("apks").getPublicUrl(storagePath);
 
+    // ---- 6b. hash the downloaded bytes and ask VirusTotal whether it
+    // already has an opinion on this exact file. Hash-only: nothing is ever
+    // uploaded, and a verdict only exists for a file VirusTotal has already
+    // scanned — a miss, a lookup failure, or no key configured all leave
+    // this at "pending". A lookup failure must never fail the import
+    // itself: the build is saved either way, just unpublished until it has
+    // a real verdict.
+    let scanStatus: ScanVerdict = "pending";
+    try {
+      const sha256 = createHash("sha256").update(bytes).digest("hex");
+      scanStatus = await deps.scanByHash(sha256);
+    } catch (caught) {
+      console.error("[import-apk-from-url] VirusTotal lookup failed:", caught);
+      // scanStatus stays "pending" — a failed check is not evidence of safety.
+    }
+
     // ---- 7. find-or-create the app row ----
     let appResult;
     try {
@@ -242,8 +283,14 @@ export async function runApkUrlImport(
         fileSize: download.size,
         minAndroidVersion: metadata.minAndroidVersion,
         permissions: metadata.permissions,
-        scanStatus: "pending",
-        scannedAt: null,
+        scanStatus,
+        // Only ever set alongside a real verdict — "pending" means no
+        // verdict was obtained, so there is nothing to date-stamp yet.
+        scannedAt: scanStatus === "pending" ? null : new Date().toISOString(),
+        // Always false here regardless of verdict, even "clean": a hash-only
+        // lookup finding a prior verdict is not the same as an admin
+        // consciously reviewing and publishing this build. Publishing stays
+        // a separate, deliberate action gated by canPublishVersion.
         published: false,
       });
 
@@ -264,7 +311,7 @@ export async function runApkUrlImport(
             versionCode: metadata.versionCode,
             minAndroidVersion: metadata.minAndroidVersion,
             permissionsCount: metadata.permissions.length,
-            scanStatus: "pending",
+            scanStatus,
             published: false,
           },
         },

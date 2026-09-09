@@ -17,14 +17,15 @@
 import { createClient } from "@supabase/supabase-js";
 
 import { resolveMedia } from "./fdroid-media.mjs";
+import { createVirusTotalScanner, VT_RETRY_INTERVAL_MS } from "../lib/apk/virustotal.ts";
 
 const INDEX_URL = "https://f-droid.org/repo/index-v1.json";
 const REPO_BASE = "https://f-droid.org/repo";
-const VT_FILES = "https://www.virustotal.com/api/v3/files";
 
-// VirusTotal free tier: 4 requests/minute, 240/hour, 500/day.
-const VT_INTERVAL_MS = 15_500;
-const VT_DAILY_BUDGET = 480; // leave headroom under 500
+// Same pacing the VirusTotal hash-lookup module retries with internally —
+// kept as its own name here since this constant paces the import loop
+// between apps, a different purpose from the module's own retry backoff.
+const VT_INTERVAL_MS = VT_RETRY_INTERVAL_MS;
 
 // ---------------------------------------------------------------- arguments
 
@@ -245,53 +246,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // -------------------------------------------------------------- virustotal
 
-let vtCalls = 0;
-let vtExhausted = false;
-
-/**
- * Look a build up by hash. Returns 'clean' | 'flagged' | 'pending'.
- * 'pending' means no verdict was obtained — never that the file is safe.
- */
-async function scanByHash(sha256) {
-  if (SKIP_SCAN || vtExhausted || !sha256) return "pending";
-  if (vtCalls >= VT_DAILY_BUDGET) {
-    vtExhausted = true;
-    console.log("\n  VirusTotal daily budget reached — remaining apps stay pending.\n");
-    return "pending";
-  }
-
-  for (let attempt = 0; attempt < 4; attempt++) {
-    try {
-      vtCalls++;
-      const res = await fetch(`${VT_FILES}/${sha256}`, {
-        headers: { "x-apikey": VT_KEY },
-      });
-
-      if (res.status === 404) return "pending"; // VirusTotal has not seen it
-      if (res.status === 429) {
-        const backoff = VT_INTERVAL_MS * (attempt + 2);
-        console.log(`    rate limited, waiting ${Math.round(backoff / 1000)}s…`);
-        await sleep(backoff);
-        continue;
-      }
-      if (res.status === 401 || res.status === 403) {
-        vtExhausted = true;
-        console.log("\n  VirusTotal rejected the API key — remaining apps stay pending.\n");
-        return "pending";
-      }
-      if (!res.ok) return "pending";
-
-      const stats = (await res.json())?.data?.attributes?.last_analysis_stats;
-      if (!stats) return "pending";
-      return (stats.malicious ?? 0) > 0 || (stats.suspicious ?? 0) > 0
-        ? "flagged"
-        : "clean";
-    } catch {
-      await sleep(VT_INTERVAL_MS);
-    }
-  }
-  return "pending";
-}
+// Extracted to lib/apk/virustotal.ts so the URL-import pipeline and the
+// admin verify route can reuse the exact same hash-lookup semantics. One
+// scanner is created for the whole run, so its call count and exhaustion
+// state track the entire batch — exactly what the old module-level
+// vtCalls/vtExhausted variables did.
+const vtScanner = createVirusTotalScanner({ apiKey: VT_KEY, skipScan: SKIP_SCAN });
+const scanByHash = (sha256) => vtScanner.scanByHash(sha256);
 
 // -------------------------------------------------------------------- main
 
@@ -439,7 +400,7 @@ async function main() {
       console.log(`    skipped: ${caught.message ?? caught}`);
     }
 
-    if (!SKIP_SCAN && !vtExhausted) await sleep(VT_INTERVAL_MS);
+    if (!SKIP_SCAN && !vtScanner.exhausted) await sleep(VT_INTERVAL_MS);
   }
 
   const skipped =
@@ -457,7 +418,7 @@ async function main() {
       `  ${pending} saved unpublished with scan_status='pending' — no VirusTotal verdict yet.`,
     );
   }
-  console.log(`  VirusTotal requests used: ${vtCalls}`);
+  console.log(`  VirusTotal requests used: ${vtScanner.callsUsed}`);
   if (DRY_RUN) console.log("  DRY RUN — nothing was written.\n");
   else console.log("");
 }

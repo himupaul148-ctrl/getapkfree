@@ -32,6 +32,15 @@ export class FakeSupabase {
   onBeforeInsert: ((table: "apps" | "versions", payload: Row) => void) | null = null;
 
   /**
+   * Test-only hook fired just before an update's WHERE-matching runs — lets
+   * a test simulate a concurrent write landing in the exact window between
+   * a caller's own read-then-guard and its follow-up conditional update
+   * (e.g. setVersionPublished's optimistic-concurrency check), without any
+   * real concurrency.
+   */
+  onBeforeUpdate: ((table: "apps" | "versions", payload: Row) => void) | null = null;
+
+  /**
    * Error injection: every operation matching `table`+`op` returns this
    * error instead of running normally, until a test clears it. Sticky
    * rather than one-shot deliberately — a real connection failure would not
@@ -80,6 +89,12 @@ class FakeQueryBuilder {
   private filters: [string, unknown][] = [];
   private op: "select" | "insert" | "update" | "delete" = "select";
   private payload: Row | null = null;
+  // Tracks whether .select() was chained after .update() — real PostgREST
+  // only returns the affected rows as `data` when a caller explicitly asks
+  // for them that way; without it, an update's `data` is always null. This
+  // matters for a caller using the returned row count as an optimistic-
+  // concurrency check (did the WHERE clause actually match anything?).
+  private wantsSelectedRows = false;
 
   private db: FakeSupabase;
   private table: "apps" | "versions";
@@ -89,8 +104,11 @@ class FakeQueryBuilder {
     this.table = table;
   }
 
-  // Columns are unused: this fake always returns whole rows.
+  // Columns are unused: this fake always returns whole rows. Chaining this
+  // after .update()/.delete() is what flips wantsSelectedRows — on a plain
+  // .select() read query it's a harmless no-op flag nothing consults.
   select() {
+    this.wantsSelectedRows = true;
     return this;
   }
 
@@ -178,8 +196,10 @@ class FakeQueryBuilder {
     if (this.op === "update" && this.payload) {
       const forced = this.checkForcedError("update");
       if (forced) return { data: null, error: forced };
-      for (const row of this.matching()) Object.assign(row, this.payload);
-      return { data: null, error: null };
+      this.db.onBeforeUpdate?.(this.table, this.payload);
+      const matched = this.matching();
+      for (const row of matched) Object.assign(row, this.payload);
+      return { data: (this.wantsSelectedRows ? matched : null) as T, error: null };
     }
 
     if (this.op === "delete") {

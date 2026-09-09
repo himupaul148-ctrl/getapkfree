@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { describe as group, test } from "node:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { downloadSafely as realDownloadSafely, UnsafeUrlError } from "../net/safe-fetch.ts";
@@ -47,9 +48,17 @@ function happyDeps(overrides: Partial<ImportPipelineDeps> = {}): Partial<ImportP
     parseApkFile: async () => VALID_METADATA,
     readFile: async () => Buffer.from("apk-bytes"),
     randomUUID: () => "fixed-uuid",
+    // A no-op stand-in for the real VirusTotal lookup — every test below
+    // that doesn't care about scan status gets the same "no verdict
+    // obtained" result the real lookup would give for an unknown hash,
+    // without making a network call.
+    scanByHash: async () => "pending",
     ...overrides,
   };
 }
+
+/** SHA-256 of the exact bytes happyDeps()'s readFile returns, for asserting the pipeline hashes the real downloaded bytes rather than anything else. */
+const APK_BYTES_SHA256 = createHash("sha256").update(Buffer.from("apk-bytes")).digest("hex");
 
 group("runApkUrlImport — request validation", () => {
   test("rejects a missing URL", async () => {
@@ -410,5 +419,108 @@ group("runApkUrlImport — uses the real security modules by default", () => {
     assert.equal(defaultDeps.downloadSafely, realDownloadSafely);
     assert.equal(defaultDeps.validateApkFile, realValidateApkFile);
     assert.equal(defaultDeps.parseApkFile, realParseApkFile);
+  });
+});
+
+group("runApkUrlImport — VirusTotal hash-lookup integration", () => {
+  test("hashes the actual downloaded bytes, not anything else", async () => {
+    const fake = new FakeSupabase();
+    let receivedHash: string | null = null;
+    const deps = happyDeps({
+      scanByHash: async (sha256) => {
+        receivedHash = sha256;
+        return "pending";
+      },
+    });
+
+    await runApkUrlImport("https://example.com/app.apk", client(fake), deps);
+
+    assert.equal(receivedHash, APK_BYTES_SHA256);
+  });
+
+  test("a clean verdict is recorded, but the build is still not published automatically", async () => {
+    const fake = new FakeSupabase();
+    const deps = happyDeps({ scanByHash: async () => "clean" });
+
+    const result = await runApkUrlImport("https://example.com/app.apk", client(fake), deps);
+
+    assert.equal(result.status, 200);
+    const version = fake.versions[0];
+    assert.equal(version.scan_status, "clean");
+    assert.notEqual(version.scanned_at, null, "a real verdict must stamp the scan date");
+    assert.equal(
+      version.published,
+      false,
+      "a hash-lookup verdict alone must never auto-publish — publishing stays a separate admin action",
+    );
+
+    const body = result.body as { version: { scanStatus: string; published: boolean } };
+    assert.equal(body.version.scanStatus, "clean");
+    assert.equal(body.version.published, false);
+  });
+
+  test("a flagged verdict is recorded and the build is not published", async () => {
+    const fake = new FakeSupabase();
+    const deps = happyDeps({ scanByHash: async () => "flagged" });
+
+    const result = await runApkUrlImport("https://example.com/app.apk", client(fake), deps);
+
+    assert.equal(result.status, 200);
+    const version = fake.versions[0];
+    assert.equal(version.scan_status, "flagged");
+    assert.notEqual(version.scanned_at, null);
+    assert.equal(version.published, false);
+  });
+
+  test("a hash miss (pending) leaves scanned_at null", async () => {
+    const fake = new FakeSupabase();
+    const deps = happyDeps({ scanByHash: async () => "pending" });
+
+    await runApkUrlImport("https://example.com/app.apk", client(fake), deps);
+
+    const version = fake.versions[0];
+    assert.equal(version.scan_status, "pending");
+    assert.equal(version.scanned_at, null);
+  });
+
+  test("a VirusTotal lookup that throws does not fail the import — the build still saves, as pending", async () => {
+    const fake = new FakeSupabase();
+    const deps = happyDeps({
+      scanByHash: async () => {
+        throw new Error("VirusTotal is unreachable");
+      },
+    });
+
+    const result = await runApkUrlImport("https://example.com/app.apk", client(fake), deps);
+
+    assert.equal(result.status, 200, "the import itself must still succeed");
+    assert.equal(fake.versions.length, 1);
+    assert.equal(fake.versions[0].scan_status, "pending");
+    assert.equal(fake.versions[0].scanned_at, null);
+    assert.equal(fake.versions[0].published, false);
+  });
+
+  test("a VirusTotal lookup that rejects with a non-Error value still does not fail the import", async () => {
+    const fake = new FakeSupabase();
+    const deps = happyDeps({
+      scanByHash: async () => {
+        throw "not an Error instance";
+      },
+    });
+
+    const result = await runApkUrlImport("https://example.com/app.apk", client(fake), deps);
+
+    assert.equal(result.status, 200);
+    assert.equal(fake.versions[0].scan_status, "pending");
+  });
+
+  test("defaultDeps.scanByHash resolves to pending with no VIRUSTOTAL_API_KEY configured (the test environment's actual state)", async () => {
+    // `npm test` runs `node --test` directly, with no --env-file, so
+    // VIRUSTOTAL_API_KEY is genuinely unset here — this exercises the real
+    // defaultScanByHash wiring end to end (via the shared module) rather
+    // than an injected fake, and proves it degrades safely with no key.
+    assert.equal(process.env.VIRUSTOTAL_API_KEY, undefined);
+    const result = await defaultDeps.scanByHash("0".repeat(64));
+    assert.equal(result, "pending");
   });
 });

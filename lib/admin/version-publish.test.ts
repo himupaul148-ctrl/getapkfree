@@ -5,6 +5,7 @@ import {
   canPublishVersion,
   setVersionPublished,
   sortVersionsByCodeDesc,
+  VersionNotPublishableError,
   type ManagedVersion,
 } from "./version-publish.ts";
 import { FakeSupabase } from "../apk/test-helpers/fake-supabase.ts";
@@ -138,5 +139,108 @@ group("setVersionPublished", () => {
     fake.forceError = { table: "versions", op: "update", error: { message: "connection reset", code: "08006" } };
 
     await assert.rejects(setVersionPublished(client(fake), "v-1", true));
+  });
+});
+
+group("setVersionPublished — server-side publish eligibility (not just the UI)", () => {
+  test("clean + publish is allowed", async () => {
+    const fake = new FakeSupabase();
+    fake.versions.push(version({ id: "v-1", published: false, scan_status: "clean" }));
+
+    await setVersionPublished(client(fake), "v-1", true);
+
+    assert.equal(fake.versions[0].published, true);
+  });
+
+  test("external + publish is allowed", async () => {
+    const fake = new FakeSupabase();
+    fake.versions.push(version({ id: "v-1", published: false, scan_status: "external" }));
+
+    await setVersionPublished(client(fake), "v-1", true);
+
+    assert.equal(fake.versions[0].published, true);
+  });
+
+  test("pending + publish is rejected, and the row is left unpublished", async () => {
+    const fake = new FakeSupabase();
+    fake.versions.push(version({ id: "v-1", published: false, scan_status: "pending" }));
+
+    await assert.rejects(
+      setVersionPublished(client(fake), "v-1", true),
+      (err) => err instanceof VersionNotPublishableError,
+    );
+    assert.equal(fake.versions[0].published, false, "must not have been published anyway");
+  });
+
+  test("flagged + publish is rejected", async () => {
+    const fake = new FakeSupabase();
+    fake.versions.push(version({ id: "v-1", published: false, scan_status: "flagged" }));
+
+    await assert.rejects(
+      setVersionPublished(client(fake), "v-1", true),
+      (err) => err instanceof VersionNotPublishableError,
+    );
+    assert.equal(fake.versions[0].published, false);
+  });
+
+  test("failed + publish is rejected", async () => {
+    const fake = new FakeSupabase();
+    fake.versions.push(version({ id: "v-1", published: false, scan_status: "failed" }));
+
+    await assert.rejects(
+      setVersionPublished(client(fake), "v-1", true),
+      (err) => err instanceof VersionNotPublishableError,
+    );
+    assert.equal(fake.versions[0].published, false);
+  });
+
+  test("a null/unrecognized scan_status + publish is rejected, not defaulted to allowed", async () => {
+    const fake = new FakeSupabase();
+    fake.versions.push(version({ id: "v-1", published: false, scan_status: null }));
+
+    await assert.rejects(setVersionPublished(client(fake), "v-1", true));
+    assert.equal(fake.versions[0].published, false);
+  });
+
+  test("re-publishing an already-published clean version is not silently corrupted (idempotent)", async () => {
+    const fake = new FakeSupabase();
+    fake.versions.push(version({ id: "v-1", published: true, scan_status: "clean" }));
+
+    await setVersionPublished(client(fake), "v-1", true);
+
+    assert.equal(fake.versions[0].published, true);
+    assert.equal(fake.versions[0].scan_status, "clean", "scan_status itself must be untouched by a publish call");
+  });
+
+  test("unpublishing has no eligibility requirement — a published-but-ineligible row can still always be unpublished", async () => {
+    // Represents a row from before this fix existed, or one this fix's own
+    // guard failed to prevent for some other reason — unpublishing must
+    // never be blocked by scan_status, since that would make an unsafe
+    // build permanently stuck published.
+    const fake = new FakeSupabase();
+    fake.versions.push(version({ id: "v-1", published: true, scan_status: "flagged" }));
+
+    await setVersionPublished(client(fake), "v-1", false);
+
+    assert.equal(fake.versions[0].published, false);
+  });
+
+  test("a scan_status that changes between the read and the write is caught, not silently published", async () => {
+    // Simulates a concurrent request downgrading this version from "clean"
+    // to "flagged" in the exact window between setVersionPublished's own
+    // read and its guarded write — onBeforeUpdate fires right before the
+    // write's WHERE-matching runs, mirroring onBeforeInsert's own
+    // established use for the equivalent insert-side race test above.
+    const fake = new FakeSupabase();
+    fake.versions.push(version({ id: "v-1", published: false, scan_status: "clean" }));
+    fake.onBeforeUpdate = (table) => {
+      if (table === "versions") fake.versions[0].scan_status = "flagged";
+    };
+
+    await assert.rejects(
+      setVersionPublished(client(fake), "v-1", true),
+      (err) => err instanceof VersionNotPublishableError,
+    );
+    assert.equal(fake.versions[0].published, false, "the race must not result in a published row");
   });
 });

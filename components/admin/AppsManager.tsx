@@ -122,6 +122,43 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
     }
   }
 
+  /**
+   * Re-checks one pending/failed build's scan status via the admin verify
+   * endpoint (a VirusTotal hash lookup of the stored file). This only ever
+   * updates that build's scan_status/scanned_at server-side — it never
+   * publishes anything itself. A build that comes back "clean" becomes
+   * *eligible* for the existing Publish button (canPublishVersion, below,
+   * is unchanged), which still requires a separate, deliberate click.
+   *
+   * No cache to drop here: verify never changes `published`, and an
+   * unpublished build's scan status is never rendered on the public site
+   * (getPublishedVersions only ever returns published builds) — so nothing
+   * revalidate() would invalidate has actually changed for a visitor.
+   */
+  async function verifyVersion(version: ManagedVersion) {
+    setError(null);
+    setBusyVersionId(version.id);
+    try {
+      const res = await fetch(`/api/admin/versions/${version.id}/verify`, {
+        method: "POST",
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(
+          (body && typeof body.error === "string" && body.error) ||
+            "Could not verify that build.",
+        );
+      }
+      router.refresh();
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Could not verify that build.",
+      );
+    } finally {
+      setBusyVersionId(null);
+    }
+  }
+
   async function remove(app: ManagedApp) {
     setError(null);
     setBusyId(app.id);
@@ -255,6 +292,7 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
                           onRequestToggle={(version, nextPublished) =>
                             setConfirmVersion({ app, version, nextPublished })
                           }
+                          onVerify={verifyVersion}
                         />
                       </td>
                     </tr>
@@ -308,6 +346,7 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
                     onRequestToggle={(version, nextPublished) =>
                       setConfirmVersion({ app, version, nextPublished })
                     }
+                    onVerify={verifyVersion}
                   />
                 </div>
               </li>
@@ -418,10 +457,12 @@ function VersionList({
   app,
   busyVersionId,
   onRequestToggle,
+  onVerify,
 }: {
   app: ManagedApp;
   busyVersionId: string | null;
   onRequestToggle: (version: ManagedVersion, nextPublished: boolean) => void;
+  onVerify: (version: ManagedVersion) => void;
 }) {
   if (app.versions.length === 0) {
     return <p className="text-xs text-fg-dim">No builds uploaded yet.</p>;
@@ -432,6 +473,11 @@ function VersionList({
       {app.versions.map((version) => {
         const eligible = canPublishVersion(version.scanStatus);
         const busy = busyVersionId === version.id;
+        // Verify only ever applies to a build with no usable verdict yet —
+        // "clean"/"external" are already eligible to publish, and "flagged"
+        // is a terminal result this phase does not attempt to re-open.
+        const verifiable =
+          version.scanStatus === "pending" || version.scanStatus === "failed";
         return (
           <li
             key={version.id}
@@ -451,19 +497,32 @@ function VersionList({
             >
               {version.published ? "Published" : "Draft"}
             </span>
-            <button
-              type="button"
-              disabled={busy || (!version.published && !eligible)}
-              title={
-                !version.published && !eligible
-                  ? "This build cannot be published until it is verified."
-                  : undefined
-              }
-              onClick={() => onRequestToggle(version, !version.published)}
-              className="ml-auto rounded-lg border border-base-700 px-3 py-1 text-fg-muted transition-colors hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {busy ? "Working…" : version.published ? "Unpublish" : "Publish"}
-            </button>
+            <span className="ml-auto flex gap-2">
+              {verifiable && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  title="Check this build's file hash against VirusTotal. Only updates its scan status — publishing is a separate step."
+                  onClick={() => onVerify(version)}
+                  className="rounded-lg border border-base-700 px-3 py-1 text-fg-muted transition-colors hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {busy ? "Working…" : "Verify"}
+                </button>
+              )}
+              <button
+                type="button"
+                disabled={busy || (!version.published && !eligible)}
+                title={
+                  !version.published && !eligible
+                    ? "This build cannot be published until it is verified."
+                    : undefined
+                }
+                onClick={() => onRequestToggle(version, !version.published)}
+                className="rounded-lg border border-base-700 px-3 py-1 text-fg-muted transition-colors hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {busy ? "Working…" : version.published ? "Unpublish" : "Publish"}
+              </button>
+            </span>
           </li>
         );
       })}

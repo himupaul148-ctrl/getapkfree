@@ -115,11 +115,32 @@ export default function ImportApkUrlForm() {
         </dl>
 
         <p className="mt-4 rounded-xl border border-base-800 bg-base-950 p-3 text-xs leading-relaxed text-fg-dim">
-          This build has been downloaded and structurally validated only — it
-          has <span className="font-medium text-fg-muted">not</span> been
-          malware-scanned. Its scan status is{" "}
-          <code className="font-mono">pending</code> until an admin reviews
-          and publishes it.
+          {result.version.scanStatus === "clean" ? (
+            <>
+              This build was downloaded, structurally validated, and
+              automatically checked against VirusTotal by its file hash —{" "}
+              <span className="font-medium text-fg-muted">clean</span>.
+              It still needs to be published from Apps Manager before it is
+              downloadable.
+            </>
+          ) : result.version.scanStatus === "flagged" ? (
+            <>
+              This build was downloaded, structurally validated, and
+              automatically checked against VirusTotal by its file hash — it
+              was <span className="font-medium text-fg-muted">flagged</span>.
+              It cannot be published until that is resolved.
+            </>
+          ) : (
+            <>
+              This build has been downloaded and structurally validated only
+              — VirusTotal has not seen this exact file before (or no
+              verdict could be obtained), so it has{" "}
+              <span className="font-medium text-fg-muted">not</span> been
+              malware-scanned. Its scan status is{" "}
+              <code className="font-mono">pending</code> until it is
+              re-checked or an admin reviews it directly.
+            </>
+          )}
         </p>
 
         <div className="mt-5 flex flex-wrap gap-3">
