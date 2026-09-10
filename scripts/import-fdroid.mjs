@@ -18,6 +18,7 @@ import { createClient } from "@supabase/supabase-js";
 
 import { resolveMedia } from "./fdroid-media.mjs";
 import { createVirusTotalScanner, VT_RETRY_INTERVAL_MS } from "../lib/apk/virustotal.ts";
+import { selectFdroidBuild } from "../lib/apk/select-fdroid-build.ts";
 
 const INDEX_URL = "https://f-droid.org/repo/index-v1.json";
 const REPO_BASE = "https://f-droid.org/repo";
@@ -301,8 +302,11 @@ async function main() {
       continue;
     }
 
-    // Index lists every build newest-first; take the current one.
-    const build = index.packages?.[packageName]?.[0];
+    // Index lists every build newest-first. Usually that first entry is the
+    // one to use, but some apps ship a separate APK per CPU architecture for
+    // the same release — selectFdroidBuild prefers an arm64-v8a/armeabi-v7a
+    // build over whichever arch happened to land the highest versionCode.
+    const build = selectFdroidBuild(index.packages?.[packageName] ?? []);
     if (!build?.apkName || !build.versionName || !build.versionCode) {
       skips.noPackage++;
       continue;
