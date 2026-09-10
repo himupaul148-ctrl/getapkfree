@@ -159,8 +159,8 @@ export default function HowToInstallPage() {
       <h2>Related guides</h2>
       <ul>
         <li>
-          <Link href="/blog/best-privacy-apps-android-2026">
-            Best privacy apps for Android in 2026
+          <Link href="/blog/best-open-source-privacy-security-apps-android">
+            Best open-source privacy and security apps for Android
           </Link>{" "}
           — what to install once sideloading works.
         </li>

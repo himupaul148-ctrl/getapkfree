@@ -155,6 +155,11 @@ const nextConfig: NextConfig = {
         destination: "/blog/what-are-apk-permissions-how-to-check",
         statusCode: 301,
       },
+      {
+        source: "/blog/best-privacy-apps-android-2026",
+        destination: "/blog/best-open-source-privacy-security-apps-android",
+        statusCode: 301,
+      },
     ];
   },
 };

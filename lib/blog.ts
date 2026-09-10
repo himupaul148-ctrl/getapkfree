@@ -36,6 +36,7 @@ export const POSTS_PER_PAGE = 10;
  */
 const RETIRED_SLUGS: readonly string[] = [
   "check-apk-permissions-before-install",
+  "best-privacy-apps-android-2026",
 ];
 
 export type BlogPost = {
