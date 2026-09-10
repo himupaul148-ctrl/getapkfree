@@ -42,3 +42,7 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# backfill audit reports (generated at the repo root by
+# `scripts/backfill-fdroid-descriptions-all.mjs --report=<path>`)
+/backfill-fdroid-descriptions-*.json
