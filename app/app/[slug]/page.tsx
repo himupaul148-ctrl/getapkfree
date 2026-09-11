@@ -8,6 +8,7 @@ import BreadcrumbJsonLd from "@/components/BreadcrumbJsonLd";
 import FavoriteToggle from "@/components/FavoriteToggle";
 import DownloadButton from "@/components/DownloadButton";
 import { downloadSourceLabel, hostOf } from "@/lib/sources";
+import { categoryListicle } from "@/lib/category-content";
 import PermissionsList from "@/components/PermissionsList";
 import RatingStars from "@/components/RatingStars";
 import ScanBadge from "@/components/ScanBadge";
@@ -116,6 +117,10 @@ export default async function AppDetailPage({ params }: Props) {
   ]);
 
   const latest = versions[0];
+  // Category editorial context, not build-specific — shown regardless of
+  // whether this app has a published build, and regardless of source_type,
+  // since the recommendation is about the category, not this app itself.
+  const listicle = categoryListicle(app.category ?? "");
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
@@ -313,6 +318,21 @@ export default async function AppDetailPage({ params }: Props) {
           </>
         )}
       </p>
+
+      {/* ---- Category listicle link: editorial context, kept as its own
+          standalone paragraph rather than folded into the install-guide box
+          above, since it's a discovery recommendation, not sideloading
+          procedure. ---- */}
+      {listicle && (
+        <p className="mt-6 text-sm">
+          <Link
+            href={`/blog/${listicle.slug}`}
+            className="font-medium text-brand-400 hover:underline"
+          >
+            {listicle.anchorText}
+          </Link>
+        </p>
+      )}
 
       {/* ---- Related apps ---- */}
       {related.length > 0 && (
