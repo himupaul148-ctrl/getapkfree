@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const MAX_BYTES = 4 * 1024 * 1024;
 const ACCEPT = "image/jpeg,image/png,image/webp,image/gif,image/avif";
@@ -37,10 +37,14 @@ export default function FeaturedImageUploader({
   slug,
   value,
   onChange,
+  onBusyChange,
 }: {
   slug: string;
   value: string;
   onChange: (url: string) => void;
+  /** Fires whenever an upload or delete starts/finishes, so a parent form
+   *  can hold off on saving until the field has settled — see BlogEditor. */
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -51,6 +55,16 @@ export default function FeaturedImageUploader({
   const [deleting, setDeleting] = useState(false);
 
   const busy = progress !== null || deleting;
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => onBusyChange?.(busy), [busy]);
+
+  // Separate from the effect above on purpose: this one's cleanup should
+  // fire only on true unmount (empty deps), not on every busy transition —
+  // it exists so a parent that unmounts this component mid-upload (e.g.
+  // navigating away) doesn't keep its own busy flag stuck true forever.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => () => onBusyChange?.(false), []);
 
   function validate(file: File): string | null {
     if (/\.hei[cf]$/i.test(file.name) || /^image\/hei[cf]$/i.test(file.type)) {

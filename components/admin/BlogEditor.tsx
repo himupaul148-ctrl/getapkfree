@@ -10,6 +10,7 @@ import RelatedAppPicker, {
 } from "@/components/admin/RelatedAppPicker";
 import { createClient } from "@/lib/supabase/client";
 import { BLOG_CATEGORIES, CATEGORY_LABELS, type BlogPost } from "@/lib/blog";
+import { buildInsertRow, buildUpdateRow } from "@/lib/blog-editor-fields";
 import { SITE_URL } from "@/lib/seo";
 
 const DESCRIPTION_LIMIT = 160;
@@ -42,6 +43,17 @@ export default function BlogEditor({
   const [slugTouched, setSlugTouched] = useState(editing);
   const [description, setDescription] = useState(post?.description ?? "");
   const [image, setImage] = useState(post?.featured_image_url ?? "");
+  // Mirrors slugTouched above: starts false, flips true the moment THIS
+  // session's uploader reports a change (a new upload, or an explicit
+  // removal — both call onImageChange below). save() only writes
+  // featured_image_url when this is true — see the comment on `row` for why.
+  const [imageTouched, setImageTouched] = useState(false);
+  // True while FeaturedImageUploader has an upload or delete in flight.
+  // Saving while that's true would submit whatever `image` held *before*
+  // the in-progress operation resolves — disabling the buttons removes the
+  // window for that race entirely rather than trying to reconcile it after
+  // the fact.
+  const [imageBusy, setImageBusy] = useState(false);
   const [category, setCategory] = useState(post?.category ?? BLOG_CATEGORIES[0]);
   const [content, setContent] = useState(post?.content ?? "");
   const [related, setRelated] = useState<string[]>(post?.related_app_ids ?? []);
@@ -60,6 +72,17 @@ export default function BlogEditor({
     if (!slugTouched) setSlug(slugify(next));
   }
 
+  // The one place `image` is ever set from here on — FeaturedImageUploader
+  // calls this same callback for both a successful upload and an explicit
+  // removal, so both paths correctly mark the field as touched. This is the
+  // single authoritative path: upload/removal response -> this state ->
+  // save()'s payload, with nothing else ever writing `image` or
+  // `imageTouched` independently.
+  function onImageChange(url: string) {
+    setImage(url);
+    setImageTouched(true);
+  }
+
   function validate(): string | null {
     if (!title.trim()) return "A title is required.";
     if (!effectiveSlug) return "A slug is required.";
@@ -71,6 +94,15 @@ export default function BlogEditor({
   async function save(publish: boolean) {
     setError(null);
     setSuccess(null);
+
+    // Belt and braces alongside the buttons' own `disabled` below — an Enter
+    // key in a text field submits the form directly and would skip a
+    // disabled attribute entirely. Saving mid-upload would submit whatever
+    // `image` held before that upload resolves.
+    if (imageBusy) {
+      setError("Wait for the image upload to finish before saving.");
+      return;
+    }
 
     const problem = validate();
     if (problem) {
@@ -88,29 +120,30 @@ export default function BlogEditor({
     setSaving(true);
     const supabase = createClient();
 
-    const row = {
+    const fields = {
       slug: effectiveSlug,
       title: title.trim(),
       description: description.trim(),
       content,
-      featured_image_url: image.trim() || null,
       author: author.trim() || "GetApkFree Team",
       category,
-      related_app_ids: related,
+      relatedAppIds: related,
       published: publish,
     };
 
     try {
       if (editing) {
+        // See lib/blog-editor-fields.ts for why featured_image_url is only
+        // ever included in this payload when imageTouched is true.
         const { error: updateError } = await supabase
           .from("blog_posts")
-          .update(row)
+          .update(buildUpdateRow(fields, image, imageTouched))
           .eq("id", post!.id);
         if (updateError) throw updateError;
       } else {
         const { error: insertError } = await supabase
           .from("blog_posts")
-          .insert(row);
+          .insert(buildInsertRow(fields, image));
         if (insertError) throw insertError;
       }
 
@@ -123,6 +156,11 @@ export default function BlogEditor({
         /* the row is saved either way */
       });
 
+      // The database now matches local state either way (untouched: left
+      // alone and still matching; touched: just written) — reset so a later
+      // save in this same session goes back to leaving the column alone
+      // unless it's touched again.
+      setImageTouched(false);
       setSuccess({ slug: effectiveSlug, live: publish });
       router.refresh();
 
@@ -275,7 +313,8 @@ export default function BlogEditor({
           <FeaturedImageUploader
             slug={effectiveSlug}
             value={image}
-            onChange={setImage}
+            onChange={onImageChange}
+            onBusyChange={setImageBusy}
           />
         </div>
 
@@ -296,16 +335,16 @@ export default function BlogEditor({
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="submit"
-          disabled={saving}
+          disabled={saving || imageBusy}
           className="rounded-xl bg-brand-500 px-6 py-3 text-sm font-bold text-base-950 transition-colors hover:bg-brand-400 disabled:opacity-40"
         >
-          {saving ? "Saving…" : editing ? "Update post" : "Publish"}
+          {saving ? "Saving…" : imageBusy ? "Image uploading…" : editing ? "Update post" : "Publish"}
         </button>
 
         <button
           type="button"
           onClick={() => void save(false)}
-          disabled={saving}
+          disabled={saving || imageBusy}
           className="rounded-xl border border-base-700 px-6 py-3 text-sm text-fg-muted transition-colors hover:text-fg disabled:opacity-40"
         >
           Save as draft
