@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import BlogJsonLd from "@/components/blog/BlogJsonLd";
 import BreadcrumbJsonLd from "@/components/BreadcrumbJsonLd";
+import FaqJsonLd from "@/components/blog/FaqJsonLd";
 import BlogViewCounter from "@/components/blog/BlogViewCounter";
 import RelatedApps from "@/components/blog/RelatedApps";
 import ShareButtons from "@/components/blog/ShareButtons";
@@ -14,6 +15,7 @@ import {
   getPublishedSlugs,
   getRelatedApps,
 } from "@/lib/blog";
+import { extractFaqPairs } from "@/lib/faq";
 import { isOptimisable } from "@/lib/images";
 import { renderMarkdown, readingTime } from "@/lib/markdown";
 import { formatDate } from "@/lib/format";
@@ -85,6 +87,10 @@ export default async function BlogPostPage({ params }: Props) {
   const html = renderMarkdown(post.content);
   const minutes = readingTime(post.content);
   const url = absolute(`/blog/${post.slug}`);
+  // Derived from the exact same post.content the article body (html, above)
+  // is rendered from — never a separate source — so the FAQPage markup can
+  // only ever describe questions and answers already visible on this page.
+  const faqPairs = extractFaqPairs(post.content);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
@@ -96,6 +102,7 @@ export default async function BlogPostPage({ params }: Props) {
           { name: post.title, url: absolute(`/blog/${post.slug}`) },
         ]}
       />
+      {faqPairs.length > 0 && <FaqJsonLd pairs={faqPairs} />}
       <BlogViewCounter
         slug={post.slug}
         title={post.title}
