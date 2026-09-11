@@ -134,6 +134,17 @@ class FakeQueryBuilder {
     return this;
   }
 
+  // Real Postgrest requires `.is(col, null)` rather than `.eq(col, null)` for
+  // a null check — `.eq` on a literal null does not mean SQL's `IS NULL`.
+  // This fake's matching is a plain `===` either way, so `is` behaves
+  // identically to `eq` here; it exists as its own method purely so callers
+  // can write the same `.is(column, null)` guard against this fake that they
+  // send to the real client.
+  is(field: string, value: unknown) {
+    this.filters.push([field, value]);
+    return this;
+  }
+
   private rows(): Row[] {
     return this.db[this.table];
   }
