@@ -17,6 +17,7 @@ export const OVERRIDABLE_FIELDS = [
   "rating",
   "rating_count",
   "version_name",
+  "license",
 ] as const;
 
 export type OverridableField = (typeof OVERRIDABLE_FIELDS)[number];
@@ -31,6 +32,7 @@ export const FIELD_LABELS: Record<OverridableField, string> = {
   rating: "Rating",
   rating_count: "Rating count",
   version_name: "Version",
+  license: "License",
 };
 
 export function isManual(

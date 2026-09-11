@@ -19,6 +19,7 @@ import { createClient } from "@supabase/supabase-js";
 import { resolveMedia } from "./fdroid-media.mjs";
 import { createVirusTotalScanner, VT_RETRY_INTERVAL_MS } from "../lib/apk/virustotal.ts";
 import { selectFdroidBuild } from "../lib/apk/select-fdroid-build.ts";
+import { licenseFromFdroidApp, targetSdkFromFdroidBuild } from "../lib/apk/fdroid-license-sdk.ts";
 
 const INDEX_URL = "https://f-droid.org/repo/index-v1.json";
 const REPO_BASE = "https://f-droid.org/repo";
@@ -345,6 +346,7 @@ async function main() {
       icon_url: media.iconUrl,
       screenshots: media.screenshots,
       developer_name: developerFrom(app),
+      license: licenseFromFdroidApp(app),
     };
 
     const version = {
@@ -353,6 +355,7 @@ async function main() {
       file_url: `${REPO_BASE}/${build.apkName}`,
       file_size: build.size ?? null,
       min_android_version: releaseFromApiLevel(build.minSdkVersion),
+      target_sdk: targetSdkFromFdroidBuild(build),
       permissions: (build["uses-permission"] ?? [])
         .map((p) => (Array.isArray(p) ? p[0] : p))
         .filter((p) => typeof p === "string"),

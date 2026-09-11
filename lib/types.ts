@@ -25,6 +25,7 @@ export type App = {
   source_type: SourceType;
   external_url: string | null;
   hosted_locally: boolean;
+  license: string | null;
 };
 
 export type Version = {
@@ -41,6 +42,7 @@ export type Version = {
   uploaded_at: string;
   scanned_at: string | null;
   permissions: string[];
+  target_sdk: number | null;
 };
 
 /** The version fields the catalogue needs in order to summarise an app. */
@@ -53,6 +55,7 @@ export type VersionSummary = Pick<
   | "uploaded_at"
   | "scanned_at"
   | "scan_status"
+  | "target_sdk"
 >;
 
 export type AppWithVersions = App & { versions: VersionSummary[] };
