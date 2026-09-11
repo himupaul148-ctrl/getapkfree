@@ -121,3 +121,32 @@ export function appSummarySentence(app: AppSummaryFacts): string {
 
   return `${identity}. ${capitalize(joinWithOxfordComma(allFacts))}.`;
 }
+
+/**
+ * P2-1's small metadata line for the app detail page: "License: X · Target
+ * SDK: Y", showing only whichever of the two facts is actually known, and
+ * nothing at all when neither is. Deliberately separate from the facts grid
+ * (Size/Requires/Last updated/Safety) rather than a fifth cell in it — both
+ * facts are optional and the grid's cells currently are not, so folding
+ * these in would mean inventing an "Unknown" fallback for facts that are
+ * meant to stay invisible when absent.
+ *
+ * Target SDK is always the raw numeric Android API level (e.g. "35") — see
+ * the P2-1 audit for why converting it to a release-name string like
+ * min_android_version would be wrong: the Android ecosystem always refers to
+ * target SDK by its raw API level, never a marketing version name.
+ */
+export function licenseAndTargetSdkLine(
+  license: string | null | undefined,
+  targetSdk: number | null | undefined,
+): string | null {
+  const hasLicense = typeof license === "string" && license.trim().length > 0;
+  const hasTargetSdk = typeof targetSdk === "number" && Number.isFinite(targetSdk) && targetSdk > 0;
+
+  const parts = [
+    hasLicense ? `License: ${(license as string).trim()}` : null,
+    hasTargetSdk ? `Target SDK: ${targetSdk}` : null,
+  ].filter((clause): clause is string => clause !== null);
+
+  return parts.length ? parts.join(" · ") : null;
+}

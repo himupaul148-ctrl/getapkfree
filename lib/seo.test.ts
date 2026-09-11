@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe as group, test } from "node:test";
-import { appDescriptionSuffix, appSummarySentence, type AppSummaryFacts } from "./seo.ts";
+import {
+  appDescriptionSuffix,
+  appSummarySentence,
+  licenseAndTargetSdkLine,
+  type AppSummaryFacts,
+} from "./seo.ts";
 
 /**
  * Covers the bug found in the Multimedia content audit: the app detail page's
@@ -169,5 +174,54 @@ group("appSummarySentence", () => {
       assert.doesNotMatch(sentence, /\band\s*\./i, `dangling 'and' for ${keep}: ${sentence}`);
       assert.doesNotMatch(sentence, /\s{2,}/, `double space for ${keep}: ${sentence}`);
     }
+  });
+});
+
+/**
+ * P2-1's app-page metadata line: "License: X · Target SDK: Y", each half
+ * shown only when known, nothing at all when neither is.
+ */
+group("licenseAndTargetSdkLine", () => {
+  test("both present -> both shown, joined with a middle dot", () => {
+    assert.equal(
+      licenseAndTargetSdkLine("MIT", 34),
+      "License: MIT · Target SDK: 34",
+    );
+  });
+
+  test("license only: target SDK missing -> only the license clause shows", () => {
+    assert.equal(licenseAndTargetSdkLine("Apache-2.0", null), "License: Apache-2.0");
+  });
+
+  test("target SDK only: license missing -> only the target SDK clause shows", () => {
+    assert.equal(licenseAndTargetSdkLine(null, 30), "Target SDK: 30");
+  });
+
+  test("neither present -> null, not an empty string or a placeholder", () => {
+    assert.equal(licenseAndTargetSdkLine(null, null), null);
+    assert.equal(licenseAndTargetSdkLine(undefined, undefined), null);
+  });
+
+  test("an empty or whitespace-only license counts as absent", () => {
+    assert.equal(licenseAndTargetSdkLine("", 34), "Target SDK: 34");
+    assert.equal(licenseAndTargetSdkLine("   ", 34), "Target SDK: 34");
+  });
+
+  test("target SDK is shown as the raw numeric API level, never converted to a release name", () => {
+    // 34 is Android 14 in the site's own API_TO_RELEASE table — this must
+    // never render as "Target SDK: 14.0" or any other release string.
+    const line = licenseAndTargetSdkLine(null, 34);
+    assert.equal(line, "Target SDK: 34");
+    assert.doesNotMatch(line!, /14\.0/);
+  });
+
+  test("target SDK of 0 is not a valid value and is treated as absent", () => {
+    // targetSdkFromFdroidBuild() never stores 0, but this stays defensive
+    // rather than rendering a nonsensical "Target SDK: 0".
+    assert.equal(licenseAndTargetSdkLine("MIT", 0), "License: MIT");
+  });
+
+  test("surrounding whitespace on a real license value is trimmed in the rendered line", () => {
+    assert.equal(licenseAndTargetSdkLine("  MIT  ", null), "License: MIT");
   });
 });

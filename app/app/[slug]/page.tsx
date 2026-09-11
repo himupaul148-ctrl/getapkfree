@@ -27,6 +27,7 @@ import {
   appDescriptionSuffix,
   appSummarySentence,
   clampDescription,
+  licenseAndTargetSdkLine,
   SITE_NAME,
 } from "@/lib/seo";
 
@@ -121,6 +122,10 @@ export default async function AppDetailPage({ params }: Props) {
   // whether this app has a published build, and regardless of source_type,
   // since the recommendation is about the category, not this app itself.
   const listicle = categoryListicle(app.category ?? "");
+  // P2-1: shows only whichever of License/Target SDK is actually known for
+  // the current (newest published) build — see lib/seo.ts for why this is a
+  // separate line rather than a fifth cell in the facts grid below.
+  const licenseAndSdk = licenseAndTargetSdkLine(app.license, latest?.target_sdk);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
@@ -226,6 +231,12 @@ export default async function AppDetailPage({ params }: Props) {
           </dd>
         </div>
       </dl>
+
+      {/* ---- License / Target SDK: optional, so a separate line rather than
+          a fixed fifth grid cell — see lib/seo.ts's licenseAndTargetSdkLine. ---- */}
+      {licenseAndSdk && (
+        <p className="mt-3 text-sm text-fg-dim">{licenseAndSdk}</p>
+      )}
 
       {/* ---- Primary download ----
           Placed directly under the quick-info bar rather than below the version
