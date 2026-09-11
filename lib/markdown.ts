@@ -1,4 +1,5 @@
 import rehypeSanitize, { defaultSchema, type Options } from "rehype-sanitize";
+import rehypeSlug from "rehype-slug";
 import rehypeStringify from "rehype-stringify";
 import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
@@ -29,7 +30,19 @@ const schema: Options = {
     // Allow ordinary links to open elsewhere, but the sanitiser still governs
     // the href protocol, so `javascript:` cannot survive this.
     a: [...(defaultSchema.attributes?.a ?? []), "target", "rel"],
+    // `id` is in the default schema's wildcard `*` attributes (every tag),
+    // inherited from GitHub's own sanitize schema. Dropped from the wildcard
+    // and re-added only here so `rehype-slug`'s heading ids (added below)
+    // survive on h2/h3 specifically, and nowhere else — h1, table cells,
+    // links etc. lose the `id` they were incidentally allowed before, which
+    // nothing currently uses anyway.
+    "*": (defaultSchema.attributes?.["*"] ?? []).filter((attr) => attr !== "id"),
+    h2: [...(defaultSchema.attributes?.h2 ?? []), "id"],
+    h3: [...(defaultSchema.attributes?.h3 ?? []), "id"],
   },
+  // clobberPrefix is deliberately left at its inherited default
+  // ("user-content-", via the ...defaultSchema spread above) — see the
+  // rehypeSlug comment below for why it must not become "".
 };
 
 const processor = unified()
@@ -40,6 +53,18 @@ const processor = unified()
   // raw HTML in the source never reaches the sanitiser because it is dropped
   // at the bridge.
   .use(remarkRehype)
+  // Deterministic h2/h3 ids for GEO/anchor-linkability (jump-to-section,
+  // citable passages). Must run before rehypeSanitize: sanitize is what
+  // actually restricts the id to h2/h3 (see schema above) and, via the
+  // inherited default clobberPrefix, prefixes every id with "user-content-".
+  // That prefix must stay on — post content is admin-authored, and the
+  // file's own threat model above is a compromised admin account; an
+  // unprefixed id lets a heading titled e.g. "## location" produce
+  // `id="location"`, a DOM-clobbering-capable value that could shadow
+  // `window.location` for other inline scripts on the page (ThemeScript,
+  // Analytics). The prefixed form carries the exact same anchor-linking
+  // value with none of that risk.
+  .use(rehypeSlug)
   .use(rehypeSanitize, schema)
   .use(rehypeStringify);
 
