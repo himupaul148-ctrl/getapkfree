@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
+import BreadcrumbJsonLd from "@/components/BreadcrumbJsonLd";
 import HomeSections from "@/components/HomeSections";
 import { PAGE_SIZE as CATEGORY_PAGE_SIZE } from "@/components/catalogue/CategoryAppList";
 import {
@@ -10,6 +12,7 @@ import {
 } from "@/components/Skeletons";
 import { getCatalogue } from "@/lib/catalogue";
 import { normalisePage } from "@/lib/blog";
+import { categoryIntro, categoryListicle } from "@/lib/category-content";
 import {
   normaliseAndroid,
   normaliseCategory,
@@ -119,8 +122,25 @@ export default async function HomePage({
   // there, where the category's app count is already being computed.
   const categoryPage = normalisePage(params.page);
 
+  // Independent of categoryPage by construction — the same category browses
+  // to the same breadcrumb/intro/listicle link on every page of its results.
+  const intro = categoryIntro(filters.category);
+  const listicle = categoryListicle(filters.category);
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6">
+      {filters.category && (
+        <BreadcrumbJsonLd
+          items={[
+            { name: "Home", url: absolute("/") },
+            {
+              name: filters.category,
+              url: absolute(`/?category=${encodeURIComponent(filters.category)}`),
+            },
+          ]}
+        />
+      )}
+
       {/* Static copy — paints immediately while the catalogue streams in. */}
       <section className="max-w-3xl">
         <span className="inline-flex items-center gap-2 rounded-full border border-brand-500/30 bg-brand-500/10 px-3 py-1 text-xs font-medium text-brand-300">
@@ -144,9 +164,19 @@ export default async function HomePage({
           )}
         </h1>
         <p className="mt-5 text-lg leading-relaxed text-fg-muted">
-          Download legitimate APKs with confidence. Every build is versioned,
-          malware-scanned, and published with its full changelog.
+          {intro ??
+            "Download legitimate APKs with confidence. Every build is versioned, malware-scanned, and published with its full changelog."}
         </p>
+        {listicle && (
+          <p className="mt-2 text-sm">
+            <Link
+              href={`/blog/${listicle.slug}`}
+              className="font-medium text-brand-400 hover:underline"
+            >
+              {listicle.anchorText}
+            </Link>
+          </p>
+        )}
       </section>
 
       <Suspense fallback={<HomeSkeleton />}>
