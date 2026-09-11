@@ -1,3 +1,4 @@
+import { formatBytes } from "./format.ts";
 import type { SourceType } from "@/lib/sources";
 
 /**
@@ -48,4 +49,75 @@ export function appDescriptionSuffix(sourceType: SourceType): string {
   return sourceType === "external"
     ? "Free download, linked to its official source."
     : "Free, open-source, malware-scanned.";
+}
+
+function joinWithOxfordComma(items: readonly string[]): string {
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
+
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** The data an app detail page has on hand to build its summary sentence from. */
+export type AppSummaryFacts = {
+  name: string;
+  category: string | null;
+  sourceType: SourceType;
+  /** Latest published build's version_name, or null if there is none. */
+  version: string | null;
+  /** Latest published build's file_size in bytes, or null if unknown. */
+  fileSize: number | null;
+  /** Latest published build's min_android_version, or null if unknown. */
+  minAndroidVersion: string | null;
+  developer: string | null;
+};
+
+/**
+ * A one- or two-sentence, answer-first summary placed right under an app
+ * page's header — the single fact-dense passage a search or AI engine can
+ * quote without having to assemble it from the page's fact grid. Built only
+ * from fields the page already has; any field that is missing is dropped
+ * rather than guessed.
+ *
+ * Mirrors appDescriptionSuffix's open-source claim: an external listing is a
+ * vendor's own proprietary app that GetApkFree neither built nor scanned
+ * (see the page's own disclosure), so it only ever gets "free", never
+ * "open-source".
+ *
+ * "Latest" is the placeholder version_name an external listing gets when its
+ * source does not publish a real version number (see generateMetadata in
+ * app/app/[slug]/page.tsx) — treated the same as no version at all, since
+ * stating it as a fact ("the latest version is Latest") would not be one.
+ */
+export function appSummarySentence(app: AppSummaryFacts): string {
+  const kind = app.sourceType === "external" ? "free" : "free, open-source";
+  const categoryWord = app.category ? ` ${app.category}` : "";
+  const identity = `${app.name} is a ${kind} Android${categoryWord} app`;
+
+  const hasRealVersion = Boolean(app.version) && app.version !== "Latest";
+  const size = app.fileSize !== null ? formatBytes(app.fileSize) : null;
+
+  const coreFacts = [
+    hasRealVersion ? `the latest version is ${app.version}` : null,
+    size ? `it is ${size}` : null,
+    app.minAndroidVersion ? `requires Android ${app.minAndroidVersion}+` : null,
+  ].filter((clause): clause is string => clause !== null);
+
+  if (coreFacts.length === 0) {
+    // No version/size/min-Android fact to anchor a second sentence — fold a
+    // lone developer fact into the first sentence instead of producing an
+    // orphan "Is published by X." with no stated subject.
+    return app.developer
+      ? `${identity}, published by ${app.developer}.`
+      : `${identity}.`;
+  }
+
+  const allFacts = app.developer
+    ? [...coreFacts, `is published by ${app.developer}`]
+    : coreFacts;
+
+  return `${identity}. ${capitalize(joinWithOxfordComma(allFacts))}.`;
 }

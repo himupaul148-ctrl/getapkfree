@@ -21,7 +21,13 @@ import {
   getRelatedApps,
 } from "@/lib/catalogue";
 import { formatBytes, formatCount, formatDate, formatRelative } from "@/lib/format";
-import { absolute, appDescriptionSuffix, clampDescription, SITE_NAME } from "@/lib/seo";
+import {
+  absolute,
+  appDescriptionSuffix,
+  appSummarySentence,
+  clampDescription,
+  SITE_NAME,
+} from "@/lib/seo";
 
 // Rebuilt at most once an hour. App metadata changes rarely, so this serves
 // from cache instead of hitting Supabase on every request, and gives the CDN
@@ -170,6 +176,20 @@ export default async function AppDetailPage({ params }: Props) {
 
         <FavoriteToggle appId={app.id} appName={app.name} variant="button" />
       </header>
+
+      {/* ---- Answer-first summary: one factual sentence a reader or search
+          engine can quote without assembling it from the facts grid below. */}
+      <p className="mt-5 max-w-2xl leading-relaxed text-fg-muted">
+        {appSummarySentence({
+          name: app.name,
+          category: app.category,
+          sourceType: app.source_type,
+          version: latest?.version_name ?? null,
+          fileSize: latest?.file_size ?? null,
+          minAndroidVersion: latest?.min_android_version ?? null,
+          developer: app.developer_name,
+        })}
+      </p>
 
       {/* ---- Quick info bar ---- */}
       <dl className="mt-8 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-base-800 bg-base-800 sm:grid-cols-4">
