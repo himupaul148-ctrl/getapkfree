@@ -7,7 +7,7 @@ import AppIcon from "@/components/AppIcon";
 import BreadcrumbJsonLd from "@/components/BreadcrumbJsonLd";
 import FavoriteToggle from "@/components/FavoriteToggle";
 import DownloadButton from "@/components/DownloadButton";
-import { downloadSourceLabel, hostOf } from "@/lib/sources";
+import { downloadSourceLabel, hostOf, safetyMethodologyPath } from "@/lib/sources";
 import { categoryListicle } from "@/lib/category-content";
 import PermissionsList from "@/components/PermissionsList";
 import RatingStars from "@/components/RatingStars";
@@ -219,7 +219,7 @@ export default async function AppDetailPage({ params }: Props) {
         />
         <div className="flex flex-col justify-center gap-1.5 bg-base-900 px-4 py-3.5">
           <dt className="text-xs text-fg-dim">Safety</dt>
-          <dd>
+          <dd className="flex flex-col items-start gap-1">
             <ScanBadge
               status={
                 app.source_type === "external"
@@ -228,6 +228,12 @@ export default async function AppDetailPage({ params }: Props) {
               }
               scannedAt={latest?.scanned_at ?? null}
             />
+            <Link
+              href={safetyMethodologyPath(app.source_type)}
+              className="text-xs text-brand-400 hover:underline"
+            >
+              what does this mean?
+            </Link>
           </dd>
         </div>
       </dl>

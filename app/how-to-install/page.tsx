@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import FaqJsonLd from "@/components/blog/FaqJsonLd";
 import Prose from "@/components/Prose";
 import ScanBadge from "@/components/ScanBadge";
+import { HOW_TO_INSTALL_FAQ_PAIRS } from "@/lib/how-to-install-faq";
 import { absolute } from "@/lib/seo";
 
 export const metadata: Metadata = {
@@ -13,10 +15,14 @@ export const metadata: Metadata = {
 
 export default function HowToInstallPage() {
   return (
-    <Prose
-      title="How to install an APK"
-      intro="Sideloading is safe when you know where the file came from and you check it before opening it. Here is the whole process, and what our badges are telling you."
-    >
+    <>
+      {HOW_TO_INSTALL_FAQ_PAIRS.length > 0 && (
+        <FaqJsonLd pairs={HOW_TO_INSTALL_FAQ_PAIRS} />
+      )}
+      <Prose
+        title="How to install an APK"
+        intro="Sideloading is safe when you know where the file came from and you check it before opening it. Here is the whole process, and what our badges are telling you."
+      >
       <h2>Why these apps aren&rsquo;t on Google Play</h2>
       <p>
         Almost everything here is <strong>free and open-source software</strong>,
@@ -46,7 +52,7 @@ export default function HowToInstallPage() {
         your behalf, which is what the scanning below is for.
       </p>
 
-      <h2>What the safety badges mean</h2>
+      <h2 id="badges">What the safety badges mean</h2>
       <p>
         Every build carries the result of a malware scan, checked against
         VirusTotal&rsquo;s engines by file hash:
@@ -179,6 +185,7 @@ export default function HowToInstallPage() {
         Browse the <Link href="/">catalogue</Link> when you are ready, or read{" "}
         <Link href="/about">how builds get listed</Link>.
       </p>
-    </Prose>
+      </Prose>
+    </>
   );
 }

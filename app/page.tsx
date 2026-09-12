@@ -19,7 +19,7 @@ import {
   normaliseSort,
   normaliseSource,
 } from "@/lib/filters";
-import { absolute, SITE_DESCRIPTION } from "@/lib/seo";
+import { absolute, categoryMetaDescription, SITE_DESCRIPTION } from "@/lib/seo";
 
 // Reading searchParams for shareable filter URLs makes this route dynamic, so
 // it cannot be ISR. The Supabase query behind it is cached for an hour instead
@@ -72,7 +72,7 @@ export async function generateMetadata({
         page > 1
           ? `${category} Apps — Page ${page} | Free Open-Source APKs`
           : `${category} Apps — Free Open-Source APKs`,
-      description: `Browse free, open-source Android ${category.toLowerCase()} apps. Every build is versioned, malware-scanned and published with its changelog.`,
+      description: categoryMetaDescription(category),
       alternates: { canonical: absolute(canonicalPath) },
       robots: { index: true, follow: true },
     };
@@ -144,7 +144,7 @@ export default async function HomePage({
       {/* Static copy — paints immediately while the catalogue streams in. */}
       <section className="max-w-3xl">
         <span className="inline-flex items-center gap-2 rounded-full border border-brand-500/30 bg-brand-500/10 px-3 py-1 text-xs font-medium text-brand-300">
-          Free apps • Safe downloads
+          Free apps • Scanned or official
         </span>
         <h1 className="mt-5 text-4xl font-extrabold tracking-tight text-balance sm:text-5xl lg:text-6xl">
           {filters.category ? (
@@ -158,14 +158,14 @@ export default async function HomePage({
             <>
               Free, Open-Source Android Apps —{" "}
               <span className="bg-gradient-to-r from-brand-400 to-azure-400 bg-clip-text text-transparent">
-                Safe and Scanned
+                Scanned Builds, Official Sources
               </span>
             </>
           )}
         </h1>
         <p className="mt-5 text-lg leading-relaxed text-fg-muted">
           {intro ??
-            "Download legitimate APKs with confidence. Every build is versioned, malware-scanned, and published with its full changelog."}
+            "Download legitimate APKs with confidence. F-Droid builds are versioned, malware-scanned by file hash, and published with their full changelog — everything else links straight to its official source."}
         </p>
         {listicle && (
           <p className="mt-2 text-sm">

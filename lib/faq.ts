@@ -24,6 +24,9 @@
 
 export type FaqPair = { question: string; answer: string };
 
+/** An unvalidated question/answer pair, before sanitizeFaqPairs checks it. */
+export type FaqCandidate = { question: string; answer: string };
+
 /** Matched case-insensitively as the *entire* heading text, not a substring. */
 const FAQ_HEADING_NAMES = new Set([
   "frequently asked questions",
@@ -84,25 +87,55 @@ function normalizeAnswerText(raw: string): string {
     .trim();
 }
 
+/**
+ * Validates and dedupes a list of already-assembled question/answer
+ * candidates, regardless of where they came from. Fails closed: a candidate
+ * whose question is not phrased as a question, or whose answer is empty
+ * once trimmed, is dropped rather than guessed at. A later duplicate of an
+ * already-seen question (by exact text) is dropped, not merged — the first
+ * occurrence wins.
+ *
+ * This is the one place that decides what counts as a valid FAQ pair;
+ * extractFaqPairs below uses it for markdown-sourced candidates, and any
+ * other page assembling its own candidates from visible JSX content (e.g.
+ * app/how-to-install/page.tsx's safety-badge FAQ) should use it too, rather
+ * than re-implementing this validation.
+ */
+export function sanitizeFaqPairs(candidates: FaqCandidate[]): FaqPair[] {
+  const pairs: FaqPair[] = [];
+  const seenQuestions = new Set<string>();
+
+  for (const { question: rawQuestion, answer: rawAnswer } of candidates) {
+    const question = rawQuestion.trim();
+    const answer = normalizeAnswerText(rawAnswer);
+    if (question.length === 0 || !question.endsWith("?")) continue;
+    if (answer.length === 0) continue;
+    if (seenQuestions.has(question)) continue;
+
+    pairs.push({ question, answer });
+    seenQuestions.add(question);
+  }
+
+  return pairs;
+}
+
 export function extractFaqPairs(markdown: string): FaqPair[] {
   if (!markdown?.trim()) return [];
 
   const sectionLines = findFaqSectionLines(markdown.split(/\r?\n/));
   if (!sectionLines) return [];
 
-  const pairs: FaqPair[] = [];
-  const seenQuestions = new Set<string>();
+  const candidates: FaqCandidate[] = [];
 
   let currentQuestion: string | null = null;
   let currentAnswerLines: string[] = [];
 
-  function commitCurrentPair(): void {
-    if (currentQuestion === null) return;
-    const question = currentQuestion;
-    const answer = normalizeAnswerText(currentAnswerLines.join(" "));
-    if (question.length > 0 && answer.length > 0 && !seenQuestions.has(question)) {
-      pairs.push({ question, answer });
-      seenQuestions.add(question);
+  function commitCurrentCandidate(): void {
+    if (currentQuestion !== null) {
+      candidates.push({
+        question: currentQuestion,
+        answer: currentAnswerLines.join(" "),
+      });
     }
     currentQuestion = null;
     currentAnswerLines = [];
@@ -122,7 +155,7 @@ export function extractFaqPairs(markdown: string): FaqPair[] {
       const candidate = boldMatch[1].trim();
       if (candidate.endsWith("?")) {
         // A new valid question — finalize whatever answer was accumulating.
-        commitCurrentPair();
+        commitCurrentCandidate();
         currentQuestion = candidate;
         continue;
       }
@@ -136,7 +169,7 @@ export function extractFaqPairs(markdown: string): FaqPair[] {
       currentAnswerLines.push(line);
     }
   }
-  commitCurrentPair();
+  commitCurrentCandidate();
 
-  return pairs;
+  return sanitizeFaqPairs(candidates);
 }

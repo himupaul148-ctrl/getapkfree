@@ -112,7 +112,7 @@ export default async function AboutPage() {
       </div>
 
       <div className="mt-6 space-y-6 leading-relaxed text-fg-muted [&_a]:text-brand-400 [&_a:hover]:underline [&_h2]:mt-10 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-fg [&_li]:ml-5 [&_li]:list-disc [&_strong]:text-fg">
-        <h2>Safety</h2>
+        <h2 id="safety">Safety</h2>
         <p>
           Builds we link from F-Droid are checked against{" "}
           <a
@@ -122,11 +122,11 @@ export default async function AboutPage() {
           >
             VirusTotal
           </a>{" "}
-          before they are published, and the result is recorded against that
-          specific build — not the app in general. Only builds that come back
-          clean reach the public catalogue. That rule is enforced in the
-          database, not just in the interface, so an unscanned build cannot leak
-          onto the site through a bug in a page.
+          by file hash before they are published, and the result is recorded
+          against that specific build — not the app in general. Only builds
+          that come back clean reach the public catalogue. That rule is
+          enforced in the database, not just in the interface, so an
+          unscanned build cannot leak onto the site through a bug in a page.
         </p>
         <p>Each listing shows one of these:</p>
       </div>

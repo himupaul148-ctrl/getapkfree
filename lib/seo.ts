@@ -16,7 +16,7 @@ export const SITE_URL = (
 export const SITE_NAME = "GetApkFree";
 
 export const SITE_DESCRIPTION =
-  "Download free, open-source Android APKs with confidence. Every build is versioned, malware-scanned, and published with its full changelog.";
+  "Download free, open-source Android APKs with confidence. F-Droid builds are versioned, malware-scanned by file hash, and published with their full changelog — everything else links straight to its official source.";
 
 /** Absolute URL for a site-relative path. */
 export function absolute(path: string): string {
@@ -49,6 +49,19 @@ export function appDescriptionSuffix(sourceType: SourceType): string {
   return sourceType === "external"
     ? "Free download, linked to its official source."
     : "Free, open-source, malware-scanned.";
+}
+
+/**
+ * A category page's meta description — deliberately the same wording for
+ * every category rather than branching on that category's actual F-Droid/
+ * external mix. Most categories contain both, so a claim like "every build
+ * is malware-scanned" would be true for some listings in the category and
+ * false for others depending on which category happened to be requested.
+ * This sentence holds regardless of the mix (see appDescriptionSuffix above
+ * for the equivalent per-app fix).
+ */
+export function categoryMetaDescription(category: string): string {
+  return `Browse free, open-source Android ${category.toLowerCase()} apps. F-Droid builds are malware-scanned by file hash; official-source apps link straight to their publisher.`;
 }
 
 function joinWithOxfordComma(items: readonly string[]): string {

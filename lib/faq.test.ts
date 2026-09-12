@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe as group, test } from "node:test";
-import { extractFaqPairs } from "./faq.ts";
+import { extractFaqPairs, sanitizeFaqPairs } from "./faq.ts";
 
 /**
  * Covers the P0-3 GEO finding: 29 of 31 published posts have a genuine,
@@ -525,5 +525,58 @@ group("extractFaqPairs — parsing rules and fail-closed behavior", () => {
 
   test("is deterministic: calling it twice on the same input gives identical output", () => {
     assert.deepEqual(extractFaqPairs(POST_B), extractFaqPairs(POST_B));
+  });
+});
+
+/**
+ * P2-4: sanitizeFaqPairs is the validation extractFaqPairs was refactored to
+ * delegate to (the tests above pin that extractFaqPairs' own behavior did
+ * not change), and the one non-markdown callers — e.g.
+ * lib/how-to-install-faq.ts's page-derived candidates — are expected to use
+ * directly instead of re-implementing this validation themselves.
+ */
+group("sanitizeFaqPairs", () => {
+  test("passes through a well-formed candidate unchanged", () => {
+    const pairs = sanitizeFaqPairs([
+      { question: "Is this valid?", answer: "Yes." },
+    ]);
+    assert.deepEqual(pairs, [{ question: "Is this valid?", answer: "Yes." }]);
+  });
+
+  test("drops a candidate whose question is not phrased as a question", () => {
+    const pairs = sanitizeFaqPairs([
+      { question: "Not a question", answer: "Some answer." },
+    ]);
+    assert.deepEqual(pairs, []);
+  });
+
+  test("drops a candidate with an empty or whitespace-only answer", () => {
+    const pairs = sanitizeFaqPairs([
+      { question: "Any answer here?", answer: "" },
+      { question: "Any answer here really?", answer: "   " },
+    ]);
+    assert.deepEqual(pairs, []);
+  });
+
+  test("drops a duplicate question, keeping the first occurrence's answer", () => {
+    const pairs = sanitizeFaqPairs([
+      { question: "Repeated question?", answer: "First." },
+      { question: "Repeated question?", answer: "Second, should be dropped." },
+    ]);
+    assert.equal(pairs.length, 1);
+    assert.equal(pairs[0].answer, "First.");
+  });
+
+  test("trims and normalizes markdown-style emphasis the same way extractFaqPairs does", () => {
+    const pairs = sanitizeFaqPairs([
+      { question: "  Is this trimmed?  ", answer: "  Yes, **very** trimmed.  " },
+    ]);
+    assert.deepEqual(pairs, [
+      { question: "Is this trimmed?", answer: "Yes, very trimmed." },
+    ]);
+  });
+
+  test("an empty list of candidates yields an empty list of pairs", () => {
+    assert.deepEqual(sanitizeFaqPairs([]), []);
   });
 });

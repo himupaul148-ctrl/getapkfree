@@ -74,6 +74,18 @@ export function sourceShortLabel(
   return PROVIDERS[providerFromUrl(externalUrl)].short;
 }
 
+/**
+ * Where an app page's Safety badge should link for "what does this mean?" —
+ * an F-Droid build points at the badge-meaning section of the install guide,
+ * which explains what our own scan result badges mean. An external listing
+ * points at the section of /about that explains why an official-source
+ * listing carries no GetApkFree scan of its own, which is the more relevant
+ * explanation for that case.
+ */
+export function safetyMethodologyPath(sourceType: SourceType): string {
+  return sourceType === "external" ? "/about#safety" : "/how-to-install#badges";
+}
+
 /** Domain shown under the download button so people see where they are going. */
 export function hostOf(url: string | null): string | null {
   if (!url) return null;

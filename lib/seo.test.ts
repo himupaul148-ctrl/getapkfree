@@ -3,7 +3,9 @@ import { describe as group, test } from "node:test";
 import {
   appDescriptionSuffix,
   appSummarySentence,
+  categoryMetaDescription,
   licenseAndTargetSdkLine,
+  SITE_DESCRIPTION,
   type AppSummaryFacts,
 } from "./seo.ts";
 
@@ -34,6 +36,58 @@ group("appDescriptionSuffix", () => {
       appDescriptionSuffix("external"),
       "Free download, linked to its official source.",
     );
+  });
+});
+
+/**
+ * P2-4: the homepage's site-wide meta description used to claim "Every
+ * build is versioned, malware-scanned, and published with its full
+ * changelog" unconditionally — false for the catalogue's external (official
+ * source, not scanned by us) listings. It now distinguishes the two rather
+ * than asserting scanning applies to the whole catalogue.
+ */
+group("SITE_DESCRIPTION", () => {
+  test("does not claim every build is malware-scanned", () => {
+    assert.doesNotMatch(SITE_DESCRIPTION, /every build is.*malware-scanned/i);
+  });
+
+  test("distinguishes F-Droid builds from everything else", () => {
+    assert.match(SITE_DESCRIPTION, /F-Droid builds are.*malware-scanned/i);
+    assert.match(SITE_DESCRIPTION, /official source/i);
+  });
+});
+
+/**
+ * P2-4: a category page's meta description used to repeat the same
+ * unconditional "malware-scanned" claim per category, even though most
+ * categories mix F-Droid and external listings. categoryMetaDescription
+ * uses one wording that holds regardless of a given category's actual mix,
+ * rather than branching per category.
+ */
+group("categoryMetaDescription", () => {
+  test("does not claim every build in the category is malware-scanned", () => {
+    const description = categoryMetaDescription("Tools");
+    assert.doesNotMatch(description, /every build is.*malware-scanned/i);
+  });
+
+  test("distinguishes F-Droid builds from official-source listings", () => {
+    const description = categoryMetaDescription("Tools");
+    assert.match(description, /F-Droid builds are.*malware-scanned/i);
+    assert.match(description, /official-source/i);
+  });
+
+  test("interpolates the given category, lowercased", () => {
+    assert.match(categoryMetaDescription("Education"), /android education apps/i);
+  });
+
+  test("produces the same wording regardless of the category's actual source mix", () => {
+    // categoryMetaDescription has no access to a category's real F-Droid/
+    // external counts, and shouldn't need any: the same sentence must be
+    // true whether a category, in fact, is all-F-Droid, all-external, or
+    // mixed, which is exactly why it does not brand per category.
+    const tools = categoryMetaDescription("Tools").replace(/tools/gi, "X");
+    const education = categoryMetaDescription("Education").replace(/education/gi, "X");
+    assert.equal(tools, education);
   });
 });
 
