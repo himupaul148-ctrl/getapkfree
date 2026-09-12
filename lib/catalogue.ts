@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { supabase } from "@/lib/supabase/public";
 import { latestVersion } from "@/lib/format";
@@ -75,7 +76,7 @@ export const getCatalogue = unstable_cache(fetchCatalogue, ["catalogue"], {
   tags: ["catalogue"],
 });
 
-export async function getAppBySlug(slug: string): Promise<App | null> {
+async function fetchAppBySlug(slug: string): Promise<App | null> {
   const { data } = await supabase
     .from("apps")
     .select("*")
@@ -85,11 +86,25 @@ export async function getAppBySlug(slug: string): Promise<App | null> {
 }
 
 /**
+ * app/app/[slug]/page.tsx calls this once from generateMetadata and once
+ * from the page body for the same slug — without memoization that's two
+ * identical, uncached Supabase round trips per render. Wrapped in React's
+ * cache(), not unstable_cache: cache() dedupes calls with identical
+ * arguments within a single render/request only, and the memoized result is
+ * discarded once that request finishes. Nothing is shared across requests
+ * or across visitors, so this introduces no cross-request cache semantics
+ * and nothing here can go stale the way a longer-lived cache could. Contrast
+ * with getCatalogue above, which deliberately does want its result shared
+ * across requests for up to an hour.
+ */
+export const getAppBySlug = cache(fetchAppBySlug);
+
+/**
  * Newest build first. RLS already restricts this to published builds; the
  * explicit filter documents the intent and keeps the page correct if the
  * policy is ever relaxed.
  */
-export async function getPublishedVersions(appId: string): Promise<Version[]> {
+async function fetchPublishedVersions(appId: string): Promise<Version[]> {
   const { data } = await supabase
     .from("versions")
     .select("*")
@@ -99,6 +114,9 @@ export async function getPublishedVersions(appId: string): Promise<Version[]> {
     .returns<Version[]>();
   return data ?? [];
 }
+
+/** Per-request memoized the same way and for the same reason as getAppBySlug above. */
+export const getPublishedVersions = cache(fetchPublishedVersions);
 
 /** Other apps in the same category, most downloaded first. */
 export async function getRelatedApps(
