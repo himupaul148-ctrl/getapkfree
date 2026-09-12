@@ -11,9 +11,10 @@ import {
 
 /**
  * Covers the P0-2 GEO finding: category browse views had one hardcoded intro
- * paragraph shared across all 8 categories and no reverse link to the 5
- * "best open-source X" listicles whose content was verified (during the
- * audit) to actually match that category's apps.
+ * paragraph shared across all 8 categories and no reverse link to the
+ * "best open-source X" listicles whose content was verified (during the P0-2
+ * and, for Tools/Education/Writing, P2-2 audits) to actually match that
+ * category's apps. All 8 categories now have a matching listicle.
  */
 
 const VERIFIED_LISTICLE_CATEGORIES = [
@@ -22,9 +23,10 @@ const VERIFIED_LISTICLE_CATEGORIES = [
   "Multimedia",
   "Internet",
   "System",
+  "Tools",
+  "Education",
+  "Writing",
 ] as const;
-
-const NO_LISTICLE_CATEGORIES = ["Tools", "Education", "Writing"] as const;
 
 group("CATEGORY_INTRO", () => {
   test("every current category has an intro", () => {
@@ -58,19 +60,9 @@ group("CATEGORY_INTRO", () => {
 });
 
 group("CATEGORY_LISTICLE", () => {
-  test("only the 5 verified categories have a listicle mapping", () => {
+  test("all 8 categories now have a listicle mapping (P2-2 added Tools, Education, Writing)", () => {
     const keys = Object.keys(CATEGORY_LISTICLE).sort();
     assert.deepEqual(keys, [...VERIFIED_LISTICLE_CATEGORIES].sort());
-  });
-
-  test("Tools, Education, and Writing have no listicle mapping", () => {
-    for (const category of NO_LISTICLE_CATEGORIES) {
-      assert.equal(
-        CATEGORY_LISTICLE[category],
-        undefined,
-        `${category} should not have a listicle mapping yet`,
-      );
-    }
   });
 
   test("each mapped listicle slug matches the verified slug exactly", () => {
@@ -83,6 +75,9 @@ group("CATEGORY_LISTICLE", () => {
       Multimedia: "best-open-source-multimedia-apps-android",
       Internet: "best-open-source-internet-networking-apps-android",
       System: "best-open-source-privacy-security-apps-android",
+      Tools: "best-open-source-tools-apps-android",
+      Education: "best-open-source-education-apps-android",
+      Writing: "best-open-source-writing-apps-android",
     };
 
     for (const category of VERIFIED_LISTICLE_CATEGORIES) {
@@ -132,7 +127,7 @@ group("isCategory / categoryIntro / categoryListicle (the safe accessors app/pag
     }
   });
 
-  test("categoryListicle matches CATEGORY_LISTICLE exactly, including the absence for Tools/Education/Writing", () => {
+  test("categoryListicle matches CATEGORY_LISTICLE exactly for every category", () => {
     for (const category of CATEGORIES) {
       assert.deepEqual(categoryListicle(category), CATEGORY_LISTICLE[category] ?? null);
     }

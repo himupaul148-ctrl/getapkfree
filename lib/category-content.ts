@@ -40,9 +40,8 @@ export const CATEGORY_INTRO: Record<Category, string> = {
  * Reverse link from a category view to its matching "best open-source X"
  * listicle, for the categories where one has actually been verified to match
  * — every app that listicle links is in that exact app.category, confirmed
- * against the live catalogue during the P0-2 audit. Tools, Education, and
- * Writing have no entry: no published post's linked apps concentrate in any
- * one of those three, so no mapping exists rather than guessing one.
+ * against the live catalogue during the P0-2 audit (and, for Tools,
+ * Education, and Writing, during P2-2's audit and implementation).
  *
  * System's listicle is titled "privacy & security", not "System" — the post
  * itself already links `/?category=System`, and every app it names is
@@ -75,6 +74,19 @@ export const CATEGORY_LISTICLE: Partial<
     slug: "best-open-source-privacy-security-apps-android",
     anchorText:
       "Read our guide to the best open-source privacy and security apps for Android",
+  },
+  Tools: {
+    slug: "best-open-source-tools-apps-android",
+    anchorText: "Read our guide to the best open-source Tools apps for Android",
+  },
+  Education: {
+    slug: "best-open-source-education-apps-android",
+    anchorText:
+      "Read our guide to the best open-source Education apps for Android",
+  },
+  Writing: {
+    slug: "best-open-source-writing-apps-android",
+    anchorText: "Read our guide to the best open-source Writing apps for Android",
   },
 };
 

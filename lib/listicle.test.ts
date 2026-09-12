@@ -23,6 +23,9 @@ import { extractListicleItems } from "./listicle.ts";
  * post content and the live lib/listicle.ts output before being trimmed
  * down for this file. NON_LISTICLE is real content from a post with no
  * listicle structure at all, used to confirm ordinary articles yield [].
+ *
+ * TOOLS/EDUCATION/WRITING below are the three listicles P2-2 added,
+ * captured the same way (verbatim H2/H3 headings and links, prose trimmed).
  */
 
 const GAMES = `Open the Games category on GetApkFree and you'll notice something quickly: it leans heavily toward puzzle apps. That's not a flaw in the catalogue — plenty of open-source developers gravitate toward grid-based logic games, and the results are genuinely good — but it does mean a straightforward "top ten" pulled from the category would end up as eight puzzle games and two afterthoughts. This list intentionally doesn't do that.
@@ -411,6 +414,246 @@ TapLock does one thing: lock your screen instantly with a double tap.
 
 ## Comparison Table`;
 
+const TOOLS = `GetApkFree's Tools category covers focused, single-purpose utilities — this guide picks ten that solve a specific, real problem well, from a full terminal emulator to a self-hosted TV remote.
+
+Each entry below is described using GetApkFree's own catalogue listing for that app, plus what its Android manifest actually requests.
+
+## How We Selected These Apps
+
+All ten come from GetApkFree's Tools category, which currently holds 17 published, F-Droid-sourced apps.
+
+## A. Remote Control
+
+### [RemotePointer](/app/remotepointer)
+
+With this app you can control your computer's keyboard and mouse using your Android device as a touchpad.
+
+**Best for:** controlling a computer's mouse and keyboard, or a projector's laser pointer, from an Android device.
+
+### [TV Remote](/app/tv-remote)
+
+TV Remote turns an Android TV into a self-hosted web remote that any device on the local network can control.
+
+**Best for:** controlling an Android TV from any browser on the same network, with nothing installed on the controlling device.
+
+## B. Monitoring & Scheduling
+
+### [Nightbell](/app/nightbell)
+
+Nightbell watches anything that answers over HTTP, or a single element on a rendered web page, checking on a schedule and alerting when it changes or breaks.
+
+**Best for:** self-hosted uptime and web-page-change monitoring, with no third-party server involved.
+
+### [CHRONOS](/app/chronos)
+
+CHRONOS schedules SMS message delivery for a specific date and time, without replacing the device's default messaging app.
+
+**Best for:** sending a text message at a specific future date and time without switching messaging apps.
+
+## C. Calling & Contacts
+
+### [NovaDial](/app/novadial)
+
+NovaDial is a privacy-focused phone dialer, built as an independent fork of Fossify Phone.
+
+**Best for:** replacing the stock phone dialer with an open-source, Fossify-based alternative.
+
+### [Libre Contacts Backup](/app/libre-contacts-backup)
+
+Libre Contacts Backup is a local-first contact backup tool: no account, no cloud, no tracking.
+
+**Best for:** backing up and restoring contacts entirely on-device, with no cloud step required.
+
+## D. Terminals & Local Servers
+
+### [Terminator](/app/terminator)
+
+Terminator is a terminal emulator with multi-session support, aimed at daily command-line use on Android.
+
+**Best for:** a full, customizable, multi-session terminal emulator for daily use.
+
+### [PaperTerm](/app/paperterm)
+
+PaperTerm is an SSH terminal purpose-built for e-paper devices such as the Onyx Boox range.
+
+**Best for:** SSHing into a remote machine from an e-paper device without the redraw issues of a general-purpose terminal.
+
+### [OMN-Go](/app/omn-go)
+
+OMN-Go is a self-hosted personal wiki and note app that runs a small local web server on the device.
+
+**Best for:** a self-hosted, Markdown-based personal wiki that runs entirely from the device itself.
+
+## E. Fitness Tracking
+
+### [BikeTrackd](/app/biketrackd)
+
+BikeTrackd is a cycling speedometer and GPS tracker built with Jetpack Compose and Material 3.
+
+**Best for:** tracking cycling speed and routes with a modern, Compose-built Android app.
+
+## Comparison Table`;
+
+const EDUCATION = `GetApkFree's Education category spans reference tools, science visualizers, and learning aids — this guide picks ten with a genuine study, reference, or skills-practice use.
+
+Each entry below is described using GetApkFree's own catalogue listing for that app, plus what its Android manifest actually requests.
+
+## How We Selected These Apps
+
+All ten come from GetApkFree's Education category, which currently holds 13 published, F-Droid-sourced apps.
+
+## A. Language & Reference
+
+### [Jargon](/app/jargon)
+
+Jargon is a fully offline reader for the Jargon File, the hacker-culture dictionary.
+
+**Best for:** reading the Jargon File's hacker-culture dictionary entirely offline.
+
+### [ReSearch](/app/research)
+
+ReSearch is a fast dictionary reader for DSL-format dictionaries.
+
+**Best for:** searching multiple DSL-format dictionaries quickly, once they're downloaded.
+
+### [Glyfen](/app/glyfen)
+
+Glyfen is an offline-first OCR app that lets you search your own photo library by the text inside each image.
+
+**Best for:** searching a photo library by the text visible inside the photos, without uploading them anywhere.
+
+## B. Science Visualization
+
+### [Fractals by Girino FOSS](/app/fractals-by-girino-foss)
+
+Fractals by Girino FOSS renders the Mandelbrot set and related fractals for interactive exploration.
+
+**Best for:** interactively exploring the Mandelbrot set and related fractals.
+
+### [MA Astronomy](/app/ma-astronomy)
+
+MA Astronomy is an AR night-sky viewer that helps you find planets, stars, and constellations.
+
+**Best for:** identifying planets, stars, and constellations in real time using your device's camera.
+
+## C. Structured Learning
+
+### [T2DECODE](/app/t2decode)
+
+T2DECODE is a local-first learning platform for IT enthusiasts, cybersecurity students, and network administrators.
+
+**Best for:** hands-on IT and cybersecurity practice through interactive simulators, for French-reading users.
+
+### [LibreAAC](/app/libreaac)
+
+LibreAAC is a free, ad-free augmentative and alternative communication (AAC) app for Android tablets.
+
+**Best for:** augmentative and alternative communication on a tablet, with everything kept on-device.
+
+## D. Practical & Everyday Reference
+
+### [Drill Press Assistant](/app/drill-press-assistant)
+
+Drill Press Assistant calculates the spindle speeds of a belt-driven drill press and recommends the optimal belt position.
+
+**Best for:** working out belt-driven drill press spindle speeds and belt positions for a specific job.
+
+### [GeauxWeather](/app/geauxweather)
+
+GeauxWeather is a clean, no-ads weather app with radar, storm tracking, and saved places.
+
+**Best for:** checking weather and storm radar without ads.
+
+## E. Faith & Daily Practice
+
+### [Huda](/app/huda)
+
+Huda is an Islamic companion app bringing Quran reading, prayer tools, and related daily-practice features into one ad-free app.
+
+**Best for:** Quran reading, audio recitation, and related daily Islamic practice tools in one app.
+
+## Comparison Table`;
+
+const WRITING = `GetApkFree's Writing category is dominated by notes apps — this guide deliberately spreads across outliners, git-synced notes, encrypted notes, and document tools.
+
+Each entry below is described using GetApkFree's own catalogue listing for that app, plus what its Android manifest actually requests.
+
+## How We Selected These Apps
+
+All ten come from GetApkFree's Writing category, which currently holds 14 published, F-Droid-sourced apps.
+
+## A. Outliners & Plain-Text Notes
+
+### [Tine](/app/tine)
+
+Tine is a local-first outliner that reads and writes a real Logseq Markdown (and Org) graph on disk.
+
+**Best for:** an Android-native outliner that stays compatible with an existing Logseq graph.
+
+### [Emborg](/app/emborg)
+
+Emborg browses \`.org\` files on-device, renders them with lightweight Org-aware formatting, and manages TODO items.
+
+**Best for:** viewing and managing TODOs across a collection of \`.org\` files on Android.
+
+## B. Self-Hosted & Synced Notes
+
+### [GitNote](/app/gitnote)
+
+GitNote is a note app backed by real files, syncable with git providers such as GitHub.
+
+**Best for:** keeping notes as real files, version-controlled and synced through your own git repository.
+
+### [LibreNotes](/app/librenotes)
+
+LibreNotes is a private, self-hosted, end-to-end-encrypted note-taking app.
+
+**Best for:** end-to-end-encrypted notes stored only on a server you control.
+
+### [NC Collectives](/app/nc-collectives)
+
+NC Collectives is an unofficial native Android client for the Nextcloud Collectives app.
+
+**Best for:** browsing and editing Nextcloud Collectives wiki notebooks from Android.
+
+## C. Bookmarks & Reading Aloud
+
+### [Karabau](/app/karabau)
+
+Karabau is an open-source Android client for Karakeep, built entirely with Jetpack Compose.
+
+**Best for:** a native Android client for a self-hosted Karakeep bookmark collection.
+
+### [Lector](/app/lector)
+
+Lector reads documents aloud using the device's own text-to-speech voices.
+
+**Best for:** having TXT, Markdown, EPUB, or PDF documents read aloud, entirely on-device.
+
+## D. Journaling & Private Notes
+
+### [SimpleDay](/app/simpleday)
+
+SimpleDay is a minimalist diary app built around one entry per day, written in Markdown.
+
+**Best for:** a calm, one-entry-per-day Markdown diary with no required account.
+
+### [Tuisku](/app/tuisku)
+
+Tuisku is a lightweight notes app that encrypts notes with the ChaCha20 algorithm internally.
+
+**Best for:** simple notes encrypted at rest with ChaCha20, with the encryption key visible in Settings.
+
+## E. Document Tools
+
+### [PDF Toolkit](/app/pdf-toolkit)
+
+PDF Toolkit is a comprehensive PDF and image manipulation tool for Android.
+
+**Best for:** general-purpose PDF and image manipulation on-device.
+
+## Comparison Table`;
+
 const NON_LISTICLE = `Before installing an APK, it's reasonable to want to know what the app inside it might ask to access.
 
 ## What Are APK Permissions?
@@ -491,6 +734,42 @@ const EXPECTED = {
     "neruppu",
     "taplock",
   ],
+  tools: [
+    "remotepointer",
+    "tv-remote",
+    "nightbell",
+    "chronos",
+    "novadial",
+    "libre-contacts-backup",
+    "terminator",
+    "paperterm",
+    "omn-go",
+    "biketrackd",
+  ],
+  education: [
+    "jargon",
+    "research",
+    "glyfen",
+    "fractals-by-girino-foss",
+    "ma-astronomy",
+    "t2decode",
+    "libreaac",
+    "drill-press-assistant",
+    "geauxweather",
+    "huda",
+  ],
+  writing: [
+    "tine",
+    "emborg",
+    "gitnote",
+    "librenotes",
+    "nc-collectives",
+    "karabau",
+    "lector",
+    "simpleday",
+    "tuisku",
+    "pdf-toolkit",
+  ],
 };
 
 group("extractListicleItems — real, published listicles (golden tests)", () => {
@@ -524,6 +803,30 @@ group("extractListicleItems — real, published listicles (golden tests)", () =>
     assert.equal(items.length, 10);
   });
 
+  test("F. best-open-source-tools-apps-android -> exactly 10, exact order (P2-2)", () => {
+    const items = extractListicleItems(TOOLS);
+    assert.deepEqual(items.map((i) => i.slug), EXPECTED.tools);
+    assert.equal(items.length, 10);
+  });
+
+  test("G. best-open-source-education-apps-android -> exactly 10, exact order (P2-2)", () => {
+    const items = extractListicleItems(EDUCATION);
+    assert.deepEqual(items.map((i) => i.slug), EXPECTED.education);
+    assert.equal(items.length, 10);
+  });
+
+  test("H. best-open-source-writing-apps-android -> exactly 10, exact order (P2-2)", () => {
+    const items = extractListicleItems(WRITING);
+    assert.deepEqual(items.map((i) => i.slug), EXPECTED.writing);
+    assert.equal(items.length, 10);
+  });
+
+  test("no accidental extraction beyond the intended 10 for any of the three P2-2 listicles", () => {
+    assert.equal(extractListicleItems(TOOLS).length, 10);
+    assert.equal(extractListicleItems(EDUCATION).length, 10);
+    assert.equal(extractListicleItems(WRITING).length, 10);
+  });
+
   test("names are preserved exactly, matching the visible heading text", () => {
     const items = extractListicleItems(PRIVACY_SECURITY);
     assert.equal(items[0].name, "1Key Password Manager");
@@ -531,13 +834,13 @@ group("extractListicleItems — real, published listicles (golden tests)", () =>
     assert.equal(items.at(-1)?.name, "TapLock");
   });
 
-  test("F. a non-listicle post (what-are-apk-permissions-how-to-check) -> []", () => {
+  test("I. a non-listicle post (what-are-apk-permissions-how-to-check) -> []", () => {
     assert.deepEqual(extractListicleItems(NON_LISTICLE), []);
   });
 });
 
 group("extractListicleItems — parsing rules and fail-closed behavior", () => {
-  test("G. extraction stops at the first '## Comparison Table' heading", () => {
+  test("J. extraction stops at the first '## Comparison Table' heading", () => {
     const md = [
       "### [First App](/app/first-app)",
       "",
@@ -556,7 +859,7 @@ group("extractListicleItems — parsing rules and fail-closed behavior", () => {
     assert.equal(items[0].slug, "first-app");
   });
 
-  test("H. no '## Comparison Table' heading -> safe whole-document fallback", () => {
+  test("K. no '## Comparison Table' heading -> safe whole-document fallback", () => {
     const md = [
       "### [Only App](/app/only-app)",
       "",
@@ -571,7 +874,7 @@ group("extractListicleItems — parsing rules and fail-closed behavior", () => {
     assert.equal(items[0].slug, "only-app");
   });
 
-  test("I. a prose-only /app/ link (not an H3 heading) is ignored", () => {
+  test("L. a prose-only /app/ link (not an H3 heading) is ignored", () => {
     const md = [
       "### [Real Entry](/app/real-entry)",
       "",
@@ -584,7 +887,7 @@ group("extractListicleItems — parsing rules and fail-closed behavior", () => {
     assert.equal(items[0].slug, "real-entry");
   });
 
-  test("J. a duplicate H3 app slug is deduped to its first occurrence", () => {
+  test("M. a duplicate H3 app slug is deduped to its first occurrence", () => {
     const md = [
       "### [First Mention](/app/same-slug)",
       "",
@@ -597,7 +900,7 @@ group("extractListicleItems — parsing rules and fail-closed behavior", () => {
     assert.equal(items[0].name, "First Mention");
   });
 
-  test("L. determinism: calling it twice on the same input gives identical output", () => {
+  test("N. determinism: calling it twice on the same input gives identical output", () => {
     assert.deepEqual(extractListicleItems(GAMES), extractListicleItems(GAMES));
   });
 
