@@ -102,10 +102,21 @@ export default function ScreenshotGallery({
             </>
           )}
 
+          {/* width/height are HTML attributes, not a CSS size: they only give
+              the browser a placeholder aspect ratio to reserve while this
+              image loads (matching the same 9:16 assumption the grid
+              thumbnails above use), so there is nothing to pop in from
+              nothing once it opens. They do not constrain the final render —
+              width stays auto and height stays capped by max-h-[85vh] below,
+              so once the real image loads the browser lays it out at its own
+              true aspect ratio, same as before; a non-9:16 screenshot is
+              never cropped or stretched to fit the placeholder. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={screenshots[openIndex]}
             alt={`${appName} screenshot ${openIndex + 1}`}
+            width={270}
+            height={480}
             onClick={(e) => e.stopPropagation()}
             className="max-h-[85vh] w-auto rounded-xl border border-base-700"
           />
