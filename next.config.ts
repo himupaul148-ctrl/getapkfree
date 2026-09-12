@@ -72,6 +72,11 @@ const nextConfig: NextConfig = {
     deviceSizes: [640, 828, 1080, 1200, 1920],
     // Optimised icons are immutable in practice — a new build gets a new URL.
     minimumCacheTTL: 60 * 60 * 24 * 30,
+    // AVIF first, WebP as the fallback for browsers that don't negotiate it —
+    // Next picks whichever the requesting browser's Accept header supports,
+    // trying each format in this order. Costs nothing extra on repeat
+    // requests: the 30-day minimumCacheTTL above already applies per format.
+    formats: ["image/avif", "image/webp"],
   },
 
   async headers() {
