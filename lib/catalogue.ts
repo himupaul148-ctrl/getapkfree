@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { supabase } from "@/lib/supabase/public";
+import { resolveQueryResult } from "@/lib/supabase/query-result";
 import { latestVersion } from "@/lib/format";
 import type { App, AppSummary, AppWithVersions, Version } from "@/lib/types";
 
@@ -94,12 +95,12 @@ const APP_DETAIL_SELECT =
   "id, name, slug, package_name, category, description, icon_url, developer_name, created_at, download_count, screenshots, rating, rating_count, source_type, external_url, hosted_locally, license";
 
 async function fetchAppBySlug(slug: string): Promise<App | null> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("apps")
     .select(APP_DETAIL_SELECT)
     .eq("slug", slug)
     .maybeSingle<App>();
-  return data;
+  return resolveQueryResult(data, error, `fetchAppBySlug: Supabase query failed for slug "${slug}"`);
 }
 
 /**
@@ -122,14 +123,16 @@ export const getAppBySlug = cache(fetchAppBySlug);
  * policy is ever relaxed.
  */
 async function fetchPublishedVersions(appId: string): Promise<Version[]> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("versions")
     .select("*")
     .eq("app_id", appId)
     .eq("published", true)
     .order("version_code", { ascending: false })
     .returns<Version[]>();
-  return data ?? [];
+  return (
+    resolveQueryResult(data, error, `fetchPublishedVersions: Supabase query failed for app "${appId}"`) ?? []
+  );
 }
 
 /** Per-request memoized the same way and for the same reason as getAppBySlug above. */
