@@ -1,6 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { supabase } from "@/lib/supabase/public";
-import { toSummary } from "@/lib/catalogue";
+import { APP_SUMMARY_SELECT, toSummary } from "@/lib/catalogue";
 import type { AppSummary, AppWithVersions } from "@/lib/types";
 import { excerpt, readingTime } from "@/lib/markdown";
 
@@ -176,9 +176,6 @@ export async function getAdjacentPosts(post: BlogPost): Promise<{
   return { previous: firstLive(olderRes.data), next: firstLive(newerRes.data) };
 }
 
-const APP_SELECT =
-  "*, versions(version_name, version_code, file_size, min_android_version, uploaded_at, scanned_at, scan_status)";
-
 /**
  * Sidebar apps. Falls back to the most-downloaded apps when a post names none,
  * so the sidebar is never an empty box.
@@ -186,6 +183,12 @@ const APP_SELECT =
  * related_app_ids is a text[] of uuids, which Postgres cannot constrain with a
  * foreign key — a deleted app simply drops out of the result rather than
  * breaking the query.
+ *
+ * Selects lib/catalogue.ts's APP_SUMMARY_SELECT rather than "*": both this
+ * function and getCatalogue there end by calling the same toSummary() on the
+ * result, so whatever column list is sufficient to build an AppSummary for
+ * the homepage is, by construction, sufficient here too — reusing it instead
+ * of a second hand-maintained list is what keeps them from drifting apart.
  */
 export async function getRelatedApps(
   ids: string[],
@@ -194,7 +197,7 @@ export async function getRelatedApps(
   if (ids.length > 0) {
     const { data } = await supabase
       .from("apps")
-      .select(APP_SELECT)
+      .select(APP_SUMMARY_SELECT)
       .in("id", ids)
       .limit(limit)
       .returns<AppWithVersions[]>();
@@ -212,7 +215,7 @@ export async function getRelatedApps(
 
   const { data } = await supabase
     .from("apps")
-    .select(APP_SELECT)
+    .select(APP_SUMMARY_SELECT)
     .order("download_count", { ascending: false })
     .limit(limit)
     .returns<AppWithVersions[]>();

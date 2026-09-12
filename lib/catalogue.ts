@@ -4,12 +4,18 @@ import { supabase } from "@/lib/supabase/public";
 import { latestVersion } from "@/lib/format";
 import type { App, AppSummary, AppWithVersions, Version } from "@/lib/types";
 
-// Every apps column toSummary() reads, and no others — screenshots in
-// particular is fetched by "*" but never used here (getAppBySlug fetches it
-// separately for the app detail page, where it is actually rendered). Was
-// costing 1,100 URLs / ~88KB per hourly cache refresh for data this query
-// discards before it ever reaches a component.
-const SELECT =
+// Every apps column toSummary() reads, and no others — screenshots and
+// license in particular are fetched by "*" but never used here (getAppBySlug
+// fetches them separately for the app detail page, where they are actually
+// rendered). Was costing 1,100 URLs / ~88KB per hourly cache refresh for
+// data this query discards before it ever reaches a component.
+//
+// Exported (not just used internally) because lib/blog.ts's getRelatedApps
+// also ends up calling toSummary() on rows shaped this way for its sidebar —
+// reusing this list there instead of a second hand-maintained copy is what
+// keeps the two "fetch some apps and summarise them" call sites from
+// silently drifting apart on which columns they select.
+export const APP_SUMMARY_SELECT =
   "id, name, slug, package_name, category, description, icon_url, developer_name, created_at, download_count, rating, rating_count, source_type, external_url, hosted_locally, versions(version_name, version_code, file_size, min_android_version, uploaded_at, scanned_at, scan_status)";
 
 /**
@@ -52,7 +58,7 @@ export function toSummary(app: AppWithVersions): AppSummary {
 async function fetchCatalogue(): Promise<{ apps: AppSummary[]; error: string | null }> {
   const { data, error } = await supabase
     .from("apps")
-    .select(SELECT)
+    .select(APP_SUMMARY_SELECT)
     .order("name")
     .returns<AppWithVersions[]>();
 
@@ -76,10 +82,21 @@ export const getCatalogue = unstable_cache(fetchCatalogue, ["catalogue"], {
   tags: ["catalogue"],
 });
 
+// Every column the App type declares, and no others — matches the apps
+// table's real columns exactly except manual_fields (admin-only provenance
+// tracking; read only by the admin metadata-edit flow, never by the public
+// detail page). "*" was fetching that column on every ISR regeneration for
+// data the public page never reads. Traced against every field the detail
+// page, AppJsonLd, and the SEO helpers it calls (appSummarySentence,
+// appDescriptionSuffix, licenseAndTargetSdkLine) actually use — see
+// app/app/[slug]/page.tsx, lib/app-json-ld.ts, lib/seo.ts.
+const APP_DETAIL_SELECT =
+  "id, name, slug, package_name, category, description, icon_url, developer_name, created_at, download_count, screenshots, rating, rating_count, source_type, external_url, hosted_locally, license";
+
 async function fetchAppBySlug(slug: string): Promise<App | null> {
   const { data } = await supabase
     .from("apps")
-    .select("*")
+    .select(APP_DETAIL_SELECT)
     .eq("slug", slug)
     .maybeSingle<App>();
   return data;
@@ -127,7 +144,7 @@ export async function getRelatedApps(
   if (!category) return [];
   const { data } = await supabase
     .from("apps")
-    .select(SELECT)
+    .select(APP_SUMMARY_SELECT)
     .eq("category", category)
     .neq("id", excludeId)
     .order("download_count", { ascending: false })
