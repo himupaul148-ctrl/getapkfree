@@ -165,20 +165,50 @@ back to Rules 3 and 4.
 
 ## Caveats
 
-**The homepage is not cacheable as built.** It reads `searchParams` so that
-filtered views (`/?search=note&category=Tools`) are shareable, and reading
-search params makes a route dynamic in the App Router. Its Supabase query is
-cached for an hour instead, so the database cost is the same as a cached page —
-only the HTML render is repeated. To make the homepage itself CDN-cacheable,
-move filter initialisation from `searchParams` to `window.location.search` in
-`FilterProvider`; the trade is that a filtered link renders the full catalogue
-first and narrows after hydration.
+**None of `/`, `/apps`, or `/blog` are cacheable as built — the same cause,
+three times.** All three read `searchParams` so that whatever the visitor is
+looking at stays a shareable, server-rendered URL, and reading search params
+makes a route dynamic in the App Router — which rules out normal CDN/edge
+caching for the HTML response itself, regardless of any `Cache-Control` value
+the route might otherwise send:
+
+- `/` reads `search`, `category`, `android`, `sort`, `source` and `page` —
+  the homepage's filter bar and category browsing
+  (`export const dynamic = "force-dynamic"` in `app/page.tsx`).
+- `/apps` reads `page` — pagination through the full catalogue listing
+  (`app/apps/page.tsx`).
+- `/blog` reads `q`, `category` and `page` — the blog's search, category
+  filter and pagination (`app/blog/page.tsx`).
+
+In every case the underlying Supabase query is cached independently, so the
+database cost does not scale with traffic the way the HTML render does: `/`
+and `/apps` both read from `getCatalogue()` (`lib/catalogue.ts`, hourly,
+tag `catalogue`), and `/blog` reads from `getPublishedPosts()` (`lib/blog.ts`,
+hourly, tag `blog`). Only the HTML render itself is repeated on every
+request — Supabase is not hit per visitor on any of the three.
+
+This is the current, intentional and correct behaviour, not an oversight: it
+buys a real, shareable, fully server-rendered URL for every
+filtered/paginated/searched view, at the cost of edge caching and per-request
+server compute that does not shrink as traffic grows. Two ways to change
+that exist, and neither is implemented:
+
+- Move filter initialisation from `searchParams` to `window.location.search`
+  in the relevant client state (`FilterProvider` for `/`; the equivalent
+  would need building for `/apps`'s and `/blog`'s own pagination/search
+  state) — the trade is that a filtered or paginated link renders the
+  unfiltered page first and narrows after hydration, rather than the exact
+  requested view arriving fully server-rendered.
+- Evaluate Cache Components / PPR (see below) — the proper, whole-app fix
+  rather than a per-route workaround.
 
 **APK files are not served by us.** `file_url` points at `f-droid.org`, so APK
 download bandwidth never touches Cloudflare or Vercel. Nothing to cache there,
 and no egress cost on our side.
 
 **Cache Components / PPR** (`cacheComponents: true` in `next.config.ts`) would
-let the homepage have a static shell with dynamic holes, which is the proper
-fix for the caveat above. It changes rendering behaviour across the whole app,
-so it deserves its own pass rather than being bundled into a CDN change.
+let `/`, `/apps` and `/blog` each have a static shell with dynamic holes,
+which is the proper fix for the caveat above across all three rather than a
+per-route workaround. It is not enabled today — `next.config.ts` has no
+`experimental` block. It changes rendering behaviour across the whole app, so
+it deserves its own pass rather than being bundled into a CDN change.
