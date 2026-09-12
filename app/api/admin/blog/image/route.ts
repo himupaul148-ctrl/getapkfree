@@ -1,15 +1,13 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { NextResponse, type NextRequest } from "next/server";
+import { authorise, serviceClient } from "@/lib/blog-image-auth";
 import {
-  BUCKET,
   MAX_BYTES,
-  authorise,
+  applyFeaturedImageDelete,
+  applyFeaturedImageUpload,
   objectPath,
   processImage,
-  pruneFolder,
-  publicUrl,
   rejectUnsupported,
-  serviceClient,
 } from "@/lib/blog-images";
 
 // sharp is a native binary; it cannot run on the Edge runtime.
@@ -104,45 +102,24 @@ export async function POST(request: NextRequest) {
   const fullPath = objectPath(slug, full.hash, "full");
   const thumbPath = objectPath(slug, thumb.hash, "thumb");
 
-  // ---- Upload ------------------------------------------------------------
+  // ---- Upload, then point the post at it, then prune the old one --------
   //
   // upsert because the name is the content hash: re-uploading identical bytes
   // must land on the same object rather than erroring or accumulating copies.
+  // The exact ordering here (storage write -> database write -> only then
+  // delete the previous image) is the safety property that matters most —
+  // see applyFeaturedImageUpload's own comment and lib/blog-images.test.ts.
+  const applied = await applyFeaturedImageUpload(db, {
+    slug,
+    fullPath,
+    thumbPath,
+    fullBuffer: full.buffer,
+    thumbBuffer: thumb.buffer,
+  });
 
-  for (const [path, buffer] of [
-    [fullPath, full.buffer],
-    [thumbPath, thumb.buffer],
-  ] as const) {
-    const { error } = await db.storage.from(BUCKET).upload(path, buffer, {
-      contentType: "image/webp",
-      cacheControl: "31536000",
-      upsert: true,
-    });
-    if (error) {
-      return NextResponse.json(
-        { error: `Upload failed: ${error.message}` },
-        { status: 502 },
-      );
-    }
+  if (!applied.ok) {
+    return NextResponse.json({ error: applied.error }, { status: 502 });
   }
-
-  // Old images for this post go now, not later — an orphan in a public bucket
-  // is a file nobody can find and nobody will clean up.
-  const removed = await pruneFolder(db, slug, [fullPath, thumbPath]);
-
-  const url = publicUrl(db, fullPath);
-  const thumbUrl = publicUrl(db, thumbPath);
-
-  // ---- Point the post at it ---------------------------------------------
-  //
-  // The post may not exist yet — an author can pick an image before the first
-  // publish — so a missing row is not an error.
-  const { data: updated } = await db
-    .from("blog_posts")
-    .update({ featured_image_url: url })
-    .eq("slug", slug)
-    .select("id")
-    .maybeSingle();
 
   // The post may already be published — getPublishedPosts is cached for an
   // hour and the post page is ISR, so without this the old image keeps
@@ -156,10 +133,10 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     ok: true,
     slug,
-    url,
-    thumbUrl,
-    postUpdated: Boolean(updated),
-    replaced: removed.length,
+    url: applied.url,
+    thumbUrl: applied.thumbUrl,
+    postUpdated: applied.updated,
+    replaced: applied.removed.length,
     full: { width: full.width, height: full.height, bytes: full.bytes },
     thumb: { width: thumb.width, height: thumb.height, bytes: thumb.bytes },
     originalBytes: file.size,
@@ -201,16 +178,17 @@ export async function DELETE(request: NextRequest) {
     );
   }
 
-  // Idempotent: an empty folder and a missing post both count as done, because
-  // the caller's intent — "this post has no featured image" — is satisfied.
-  const removed = await pruneFolder(db, slug, []);
+  // Database first, storage second — same reasoning as the upload path
+  // above: if the database write fails, the post must keep pointing at
+  // whatever still genuinely exists, so the file is only removed once the
+  // post no longer references it. Idempotent either way: an empty folder
+  // and a missing post both count as done, because the caller's intent —
+  // "this post has no featured image" — is satisfied.
+  const applied = await applyFeaturedImageDelete(db, slug);
 
-  const { data: updated } = await db
-    .from("blog_posts")
-    .update({ featured_image_url: null })
-    .eq("slug", slug)
-    .select("id")
-    .maybeSingle();
+  if (!applied.ok) {
+    return NextResponse.json({ error: applied.error }, { status: 502 });
+  }
 
   // Same reasoning as the upload path above: drop the caches this write
   // could be invalidating.
@@ -221,7 +199,7 @@ export async function DELETE(request: NextRequest) {
   return NextResponse.json({
     ok: true,
     slug,
-    removed: removed.length,
-    postUpdated: Boolean(updated),
+    removed: applied.removed.length,
+    postUpdated: applied.updated,
   });
 }

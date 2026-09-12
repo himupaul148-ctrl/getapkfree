@@ -1,113 +1,33 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash } from "node:crypto";
 import sharp from "sharp";
-import { createClient } from "@supabase/supabase-js";
-import { isAdmin } from "@/lib/admin";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  ACCEPTED_MIME,
+  FULL,
+  MAX_BYTES,
+  QUALITY,
+  rejectUnsupported,
+  THUMB,
+  WEBP_EFFORT,
+} from "./blog-image-policy.ts";
 
 /**
- * Shared pieces for the blog featured-image endpoints.
+ * Image processing and storage for the blog featured-image endpoints.
  *
- * Kept out of the route files so upload and delete cannot drift apart on
- * naming, auth or which bucket they touch.
+ * Deliberately has NO dependency on lib/blog-image-auth.ts (authorise,
+ * serviceClient) or anything that reads cookies/next/headers — that split
+ * is what keeps this file's sharp/storage logic importable, and therefore
+ * unit-testable (lib/blog-images.test.ts), under a plain `node --test` run.
+ * The route (app/api/admin/blog/image/route.ts) imports from both files.
+ *
+ * The accepted-format list, size limit, and output dimensions/quality live
+ * in lib/blog-image-policy.ts (no imports of any kind there) and are
+ * re-exported here so existing importers of this module do not need to change.
  */
+
+export { ACCEPTED_MIME, FULL, MAX_BYTES, QUALITY, rejectUnsupported, THUMB };
 
 export const BUCKET = "blog-images";
-
-/** OG card ratio. Anything larger is wasted bytes on a card nobody zooms. */
-export const FULL = { width: 1200, height: 630 };
-export const THUMB = { width: 600, height: 315 };
-export const QUALITY = 82;
-
-/**
- * Vercel rejects request bodies over 4.5MB before the function runs, so a
- * larger limit here would be a promise the platform breaks with an opaque 413.
- * The UI warns above this too, where the message can actually be useful.
- */
-export const MAX_BYTES = 4 * 1024 * 1024;
-
-/**
- * Formats sharp can genuinely decode with the prebuilt binary.
- *
- * HEIC is deliberately absent. sharp ships libheif without the HEVC codec —
- * `heifsave: Unsupported compression` — and iPhone HEICs are HEVC-coded, so
- * they cannot be decoded here at any quality setting. AVIF is fine because it
- * is AV1, which is royalty-free and is compiled in.
- */
-export const ACCEPTED_MIME = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-  "image/avif",
-] as const;
-
-const HEIC_MIME = ["image/heic", "image/heif"];
-
-export type AuthResult =
-  | { ok: true; via: "session" | "token" }
-  | { ok: false; status: number; error: string };
-
-function tokenMatches(provided: string, expected: string): boolean {
-  const a = Buffer.from(provided.trim());
-  const b = Buffer.from(expected.trim());
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
-
-/**
- * Accepts either an admin session or the CI bearer token.
- *
- * The session path is what the browser uses. Shipping the shared token to the
- * browser so the UI could send it would turn a CI credential into something
- * readable by anyone who opens devtools on the admin page — and it cannot be
- * rotated per-user or revoked for one person. The session already exists,
- * already backs every other admin surface, and RLS enforces it independently
- * of what any route remembers to check.
- *
- * The token path stays for curl and any future scripting, which have no
- * cookies to present.
- */
-export async function authorise(request: Request): Promise<AuthResult> {
-  const header = request.headers.get("authorization");
-  const match = header?.match(/^\s*Bearer\s+(.+)\s*$/i);
-
-  if (match) {
-    const expected = process.env.BLOG_PUBLISH_TOKEN;
-    if (!expected) {
-      return {
-        ok: false,
-        status: 503,
-        error: "BLOG_PUBLISH_TOKEN is not configured on this deployment.",
-      };
-    }
-    if (!tokenMatches(match[1], expected)) {
-      return { ok: false, status: 401, error: "Unauthorized: invalid token." };
-    }
-    return { ok: true, via: "token" };
-  }
-
-  if (await isAdmin()) return { ok: true, via: "session" };
-
-  return {
-    ok: false,
-    status: 401,
-    error: "Unauthorized: sign in as an admin, or send a bearer token.",
-  };
-}
-
-/** Service-role client. Never reaches the browser — routes only. */
-export function serviceClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  // The publish route uses BLOG_PUBLISH_SUPABASE_SERVICE_KEY; older code used
-  // SUPABASE_SERVICE_ROLE_KEY. Accept either so this works whichever is set.
-  const key =
-    process.env.BLOG_PUBLISH_SUPABASE_SERVICE_KEY ??
-    process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!url || !key) return null;
-  return createClient(url.trim(), key.trim(), {
-    auth: { persistSession: false },
-  });
-}
 
 export type Processed = {
   buffer: Buffer;
@@ -118,30 +38,64 @@ export type Processed = {
   hash: string;
 };
 
+/**
+ * Resizes+crops `input` to exactly `size`, encoded as WebP. Exported (rather
+ * than kept as a render() implementation detail) so its cover-crop behaviour
+ * — always exactly the target dimensions, whatever the source aspect ratio,
+ * never stretched — can be unit-tested directly against synthetic images.
+ *
+ * Cropping tries sharp's "attention" saliency heuristic first, so the crop
+ * favours whatever the image actually has in it rather than assuming the
+ * subject sits dead centre. That heuristic is always present in the
+ * prebuilt sharp binary this project depends on, so the fallback below is
+ * defensive rather than a case expected to trigger in production — but a
+ * resize is never allowed to simply fail outright because a saliency pass
+ * had trouble with a particular image; the crop must always still produce
+ * the exact target box, just centred instead of subject-aware.
+ */
+export async function resizeCover(
+  input: Buffer,
+  size: { width: number; height: number },
+  options: { smartCrop?: boolean } = {},
+): Promise<Buffer> {
+  const smartCrop = options.smartCrop ?? true;
+
+  const pipeline = () =>
+    sharp(input, { failOn: "error" })
+      .rotate() // honour the EXIF orientation before metadata is dropped
+      .resize({
+        ...size,
+        fit: "cover",
+        ...(smartCrop ? { position: sharp.strategy.attention } : {}),
+        withoutEnlargement: false,
+      })
+      // sharp strips metadata by default, so there is deliberately no
+      // .withMetadata() call here — that method *retains* it, which is the
+      // opposite of what is wanted. Verified against the stored object: an
+      // input carrying 204 bytes of EXIF comes out with none, so GPS
+      // coordinates from a phone photo never reach the public bucket.
+      // .rotate() above has already baked in the orientation flag, so
+      // dropping EXIF cannot turn an image sideways.
+      .webp({ quality: QUALITY, effort: WEBP_EFFORT })
+      .toBuffer();
+
+  if (!smartCrop) return pipeline();
+
+  try {
+    return await pipeline();
+  } catch {
+    // The saliency pass itself failed on this particular image — fall back
+    // to a plain centred cover-crop rather than surfacing an error for
+    // something a simpler crop would have handled fine.
+    return resizeCover(input, size, { smartCrop: false });
+  }
+}
+
 async function render(
   input: Buffer,
   size: { width: number; height: number },
 ): Promise<Processed> {
-  const buffer = await sharp(input, { failOn: "error" })
-    .rotate() // honour the EXIF orientation before metadata is dropped
-    .resize({
-      ...size,
-      fit: "cover",
-      // Crops toward whatever the saliency heuristic thinks the subject is,
-      // rather than assuming it sits dead centre.
-      position: sharp.strategy.attention,
-      withoutEnlargement: false,
-    })
-    // sharp strips metadata by default, so there is deliberately no
-    // .withMetadata() call here — that method *retains* it, which is the
-    // opposite of what is wanted. Verified against the stored object: an input
-    // carrying 204 bytes of EXIF comes out with none, so GPS coordinates from
-    // a phone photo never reach the public bucket. .rotate() above has already
-    // baked in the orientation flag, so dropping EXIF cannot turn an image
-    // sideways.
-    .webp({ quality: QUALITY, effort: 4 })
-    .toBuffer();
-
+  const buffer = await resizeCover(input, size);
   const meta = await sharp(buffer).metadata();
 
   return {
@@ -161,45 +115,26 @@ export async function processImage(input: Buffer): Promise<ProcessedPair> {
   return { full, thumb };
 }
 
-/** Rejects what sharp cannot read, naming HEIC specifically. */
-export function rejectUnsupported(mime: string, filename: string): string | null {
-  const type = mime.toLowerCase();
-
-  if (HEIC_MIME.includes(type) || /\.hei[cf]$/i.test(filename)) {
-    return (
-      "HEIC/HEIF is not supported. The image library here ships without the " +
-      "HEVC decoder that Apple's format needs, so the file cannot be read at " +
-      "all. Export as JPEG or PNG first — on iPhone, Settings → Camera → " +
-      "Formats → Most Compatible."
-    );
-  }
-
-  if (!(ACCEPTED_MIME as readonly string[]).includes(type)) {
-    return `${mime || "That file"} is not a supported image. Use JPEG, PNG, WebP, GIF or AVIF.`;
-  }
-
-  return null;
-}
-
 export function objectPath(slug: string, hash: string, variant: "full" | "thumb") {
   return `${slug}/${hash}${variant === "thumb" ? "-thumb" : ""}.webp`;
 }
 
-export function publicUrl(
-  db: NonNullable<ReturnType<typeof serviceClient>>,
-  path: string,
-) {
+export function publicUrl(db: SupabaseClient, path: string) {
   return db.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
 /**
  * Removes every object under a post's folder except the ones just written.
  *
- * Called after an upload so replacing an image does not leave the previous one
- * behind, and with an empty keep-set on delete.
+ * Callers (app/api/admin/blog/image/route.ts) run this only *after* the
+ * database row has been confirmed pointing at the new state — never before
+ * — so a database write failing partway through can never leave a post
+ * referencing a file this function already deleted. An old file lingering a
+ * little longer than strictly necessary is harmless; a post pointing at a
+ * 404 is not.
  */
 export async function pruneFolder(
-  db: NonNullable<ReturnType<typeof serviceClient>>,
+  db: SupabaseClient,
   slug: string,
   keep: string[] = [],
 ): Promise<string[]> {
@@ -212,4 +147,105 @@ export async function pruneFolder(
 
   if (doomed.length > 0) await db.storage.from(BUCKET).remove(doomed);
   return doomed;
+}
+
+/** Alias kept for readability at call sites — this is just the real Supabase client type. */
+export type SupabaseLike = SupabaseClient;
+
+export type FeaturedImageUploadResult =
+  | { ok: true; url: string; thumbUrl: string; updated: boolean; removed: string[] }
+  | { ok: false; error: string };
+
+/**
+ * The safety-critical core of the upload endpoint, once the two processed
+ * buffers already exist: write them to storage, then point the post at the
+ * new URL, and only once *that* database write is confirmed does it prune
+ * whatever else was sitting in the slug's folder.
+ *
+ * Extracted from the route handler specifically so this ordering — never
+ * deleting an old image before the database is confirmed pointing at its
+ * replacement — is directly unit-testable against a minimal fake client,
+ * rather than only verifiable by reading the route file. See
+ * lib/blog-images.test.ts for the tests this exists to support:
+ * "old featured_image_url is not cleared when processing fails" and
+ * "database update happens only after successful processing/storage" are
+ * really both properties of this function's ordering.
+ */
+export async function applyFeaturedImageUpload(
+  db: SupabaseLike,
+  params: {
+    slug: string;
+    fullPath: string;
+    thumbPath: string;
+    fullBuffer: Buffer;
+    thumbBuffer: Buffer;
+  },
+): Promise<FeaturedImageUploadResult> {
+  for (const [path, buffer] of [
+    [params.fullPath, params.fullBuffer],
+    [params.thumbPath, params.thumbBuffer],
+  ] as const) {
+    const { error } = await db.storage.from(BUCKET).upload(path, buffer, {
+      contentType: "image/webp",
+      cacheControl: "31536000",
+      upsert: true,
+    });
+    if (error) return { ok: false, error: `Upload failed: ${error.message}` };
+  }
+
+  const url = publicUrl(db, params.fullPath);
+  const thumbUrl = publicUrl(db, params.thumbPath);
+
+  // The post may not exist yet — an author can pick an image before the
+  // first publish — so a missing row (data null, error null) is not itself
+  // an error; only a genuine database error is.
+  const { data: updated, error: updateError } = await db
+    .from("blog_posts")
+    .update({ featured_image_url: url })
+    .eq("slug", params.slug)
+    .select("id")
+    .maybeSingle();
+
+  if (updateError) {
+    // The new image is already safely stored — nothing to unwind. It sits
+    // as an extra, harmless object under this slug's folder (named by
+    // content hash, so a retry reuses it rather than duplicating it) until
+    // a future successful save prunes it away.
+    return {
+      ok: false,
+      error:
+        `The image was processed and stored, but saving it to the post failed: ` +
+        `${updateError.message}. Nothing was changed — try again.`,
+    };
+  }
+
+  const removed = await pruneFolder(db, params.slug, [params.fullPath, params.thumbPath]);
+  return { ok: true, url, thumbUrl, updated: Boolean(updated), removed };
+}
+
+export type FeaturedImageDeleteResult =
+  | { ok: true; updated: boolean; removed: string[] }
+  | { ok: false; error: string };
+
+/** Same database-then-storage ordering as applyFeaturedImageUpload, for removal. */
+export async function applyFeaturedImageDelete(
+  db: SupabaseLike,
+  slug: string,
+): Promise<FeaturedImageDeleteResult> {
+  const { data: updated, error: updateError } = await db
+    .from("blog_posts")
+    .update({ featured_image_url: null })
+    .eq("slug", slug)
+    .select("id")
+    .maybeSingle();
+
+  if (updateError) {
+    return {
+      ok: false,
+      error: `Removing the featured image failed: ${updateError.message}. Nothing was changed — try again.`,
+    };
+  }
+
+  const removed = await pruneFolder(db, slug, []);
+  return { ok: true, updated: Boolean(updated), removed };
 }

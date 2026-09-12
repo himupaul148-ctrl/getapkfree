@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-
-const MAX_BYTES = 4 * 1024 * 1024;
-const ACCEPT = "image/jpeg,image/png,image/webp,image/gif,image/avif";
+import { ACCEPT_ATTR, MAX_BYTES } from "@/lib/blog-image-policy";
 
 type Result = {
   url: string;
@@ -74,7 +72,7 @@ export default function FeaturedImageUploader({
         "Settings → Camera → Formats → Most Compatible)."
       );
     }
-    if (!ACCEPT.split(",").includes(file.type)) {
+    if (!ACCEPT_ATTR.split(",").includes(file.type)) {
       return `${file.type || "That file"} is not a supported image. Use JPEG, PNG, WebP, GIF or AVIF.`;
     }
     if (file.size > MAX_BYTES) {
@@ -166,8 +164,10 @@ export default function FeaturedImageUploader({
     <div>
       <p className="text-sm font-medium">Featured image</p>
       <p className="mt-1 text-xs text-fg-dim">
-        Resized to 1200×630 WebP for the OG card, cropped toward the subject.
-        EXIF is stripped. JPEG, PNG, WebP, GIF or AVIF, up to 4MB.
+        Upload any supported image — no manual cropping needed. It is
+        automatically cropped to 1200×630 (favouring the subject over a dead
+        centre) and converted to optimized WebP; EXIF is stripped. JPEG, PNG,
+        WebP, GIF or AVIF, up to 4MB.
       </p>
 
       {/* ---- Current image ---- */}
@@ -250,7 +250,7 @@ export default function FeaturedImageUploader({
       <input
         ref={inputRef}
         type="file"
-        accept={ACCEPT}
+        accept={ACCEPT_ATTR}
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
