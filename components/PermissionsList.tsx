@@ -1,19 +1,23 @@
 import Link from "next/link";
 import Disclosure from "@/components/Disclosure";
+import PermissionBulletList from "@/components/PermissionBulletList";
 import { describePermissions } from "@/lib/permissions";
 
 export default function PermissionsList({
   permissions,
   versionName,
+  id,
 }: {
   permissions: string[];
   versionName: string | null;
+  id?: string;
 }) {
   const described = describePermissions(permissions);
   const sensitiveCount = described.filter((p) => p.sensitive).length;
 
   return (
     <Disclosure
+      id={id}
       title="Permissions"
       hint={
         described.length === 0
@@ -39,32 +43,9 @@ export default function PermissionsList({
             </Link>
             .
           </p>
-          <ul className="mt-4 space-y-3">
-            {described.map((permission) => (
-              <li key={permission.raw} className="flex gap-3">
-                <span
-                  className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${
-                    permission.sensitive ? "bg-warn-500" : "bg-base-600"
-                  }`}
-                  aria-hidden="true"
-                />
-                <div className="min-w-0">
-                  <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-fg">
-                    {permission.label}
-                    {permission.sensitive && (
-                      <span className="rounded-full border border-warn-500/30 bg-warn-500/10 px-2 py-0.5 text-[11px] font-normal text-warn-300">
-                        Review
-                      </span>
-                    )}
-                  </p>
-                  <p className="text-sm text-fg-muted">{permission.description}</p>
-                  <p className="mt-0.5 font-mono text-xs break-all text-fg-dim">
-                    {permission.raw}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <div className="mt-4">
+            <PermissionBulletList permissions={described} />
+          </div>
         </>
       )}
     </Disclosure>

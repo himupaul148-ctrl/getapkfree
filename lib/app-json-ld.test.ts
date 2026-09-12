@@ -146,3 +146,69 @@ group("buildAppJsonLdData — existing fields unchanged", () => {
     assert.equal("softwareVersion" in json, false);
   });
 });
+
+group("buildAppJsonLdData — permissions (P2-3)", () => {
+  test("the latest version's permissions become a comma-joined Text value, using the existing short-label logic", () => {
+    const data = buildAppJsonLdData(
+      baseApp(),
+      baseVersion({ permissions: ["android.permission.CAMERA", "android.permission.POST_NOTIFICATIONS"] }),
+    );
+    assert.equal(data.permissions, "Camera, Post Notifications");
+  });
+
+  test("a single permission still produces a plain Text value, not a one-element array", () => {
+    const data = buildAppJsonLdData(baseApp(), baseVersion({ permissions: ["android.permission.INTERNET"] }));
+    assert.equal(data.permissions, "Internet");
+    assert.equal(typeof data.permissions, "string");
+  });
+
+  test("zero permissions on the latest version -> the property is omitted entirely, not an empty string", () => {
+    const data = buildAppJsonLdData(baseApp(), baseVersion({ permissions: [] }));
+    const json = JSON.parse(JSON.stringify(data));
+    assert.equal("permissions" in json, false);
+  });
+
+  test("no published version at all -> permissions is omitted, not a crash", () => {
+    const data = buildAppJsonLdData(baseApp(), undefined);
+    const json = JSON.parse(JSON.stringify(data));
+    assert.equal("permissions" in json, false);
+  });
+
+  test("historical versions' permissions are never consulted — only the latest/current version's", () => {
+    // buildAppJsonLdData only ever receives one Version (the caller's
+    // "latest"), so there is no historical-version data path to leak from —
+    // this pins that the function signature itself enforces "current only".
+    const data = buildAppJsonLdData(baseApp(), baseVersion({ permissions: ["android.permission.CAMERA"] }));
+    assert.equal(data.permissions, "Camera");
+  });
+});
+
+group("buildAppJsonLdData — releaseNotes (P2-3)", () => {
+  test("a real, stored changelog on the latest version becomes releaseNotes verbatim", () => {
+    const data = buildAppJsonLdData(baseApp(), baseVersion({ changelog: "Fixed a crash on startup." }));
+    assert.equal(data.releaseNotes, "Fixed a crash on startup.");
+  });
+
+  test("a null changelog -> releaseNotes is omitted, never fabricated", () => {
+    const data = buildAppJsonLdData(baseApp(), baseVersion({ changelog: null }));
+    const json = JSON.parse(JSON.stringify(data));
+    assert.equal("releaseNotes" in json, false);
+  });
+
+  test("a whitespace-only changelog counts as absent", () => {
+    const data = buildAppJsonLdData(baseApp(), baseVersion({ changelog: "   " }));
+    const json = JSON.parse(JSON.stringify(data));
+    assert.equal("releaseNotes" in json, false);
+  });
+
+  test("surrounding whitespace on a real changelog is trimmed, not altered otherwise", () => {
+    const data = buildAppJsonLdData(baseApp(), baseVersion({ changelog: "  Minor fixes.  " }));
+    assert.equal(data.releaseNotes, "Minor fixes.");
+  });
+
+  test("no published version at all -> releaseNotes is omitted", () => {
+    const data = buildAppJsonLdData(baseApp(), undefined);
+    const json = JSON.parse(JSON.stringify(data));
+    assert.equal("releaseNotes" in json, false);
+  });
+});

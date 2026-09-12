@@ -1,4 +1,5 @@
 import { absolute } from "./seo.ts";
+import { describePermission } from "./permissions.ts";
 import { spdxLicenseUrl } from "./spdx-license.ts";
 import type { App, Version } from "./types.ts";
 
@@ -18,11 +19,29 @@ import type { App, Version } from "./types.ts";
  * not a build-time compliance declaration — and using it for target SDK
  * would misrepresent the fact), so target SDK stays visible-UI-only (see
  * the app detail page's own metadata line).
+ *
+ * P2-3 adds two more genuine, pre-existing Schema.org properties, both
+ * describing only the current/latest version — never a history of past
+ * versions, since no SoftwareApplication property represents that (adding
+ * one would mean inventing a property, which this file deliberately never
+ * does):
+ *   - `permissions` (Text) — the latest build's permission short-labels,
+ *     reusing lib/permissions.ts's existing describePermission() rather than
+ *     a second mapping. Omitted entirely when the latest build requests none.
+ *   - `releaseNotes` (Text) — the latest build's own stored changelog, when
+ *     one exists. Never inferred or written here; only ever the exact stored
+ *     value, matching this project's "do not invent" convention everywhere
+ *     else in this file.
  */
 export function buildAppJsonLdData(
   app: App,
   latest: Version | undefined,
 ): Record<string, unknown> {
+  const permissionLabels = (latest?.permissions ?? [])
+    .map((raw) => describePermission(raw).label)
+    .filter((label) => label.length > 0);
+  const releaseNotes = latest?.changelog?.trim() || undefined;
+
   const data: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
@@ -40,6 +59,8 @@ export function buildAppJsonLdData(
     description: app.description ?? undefined,
     image: app.icon_url ?? undefined,
     license: spdxLicenseUrl(app.license) ?? undefined,
+    permissions: permissionLabels.length > 0 ? permissionLabels.join(", ") : undefined,
+    releaseNotes,
     author: app.developer_name
       ? { "@type": "Organization", name: app.developer_name }
       : undefined,

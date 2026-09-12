@@ -6,15 +6,19 @@ export default function Disclosure({
   title,
   hint,
   defaultOpen = false,
+  id,
   children,
 }: {
   title: string;
   hint?: string;
   defaultOpen?: boolean;
+  /** Stable anchor (e.g. "#permissions") so the section can be linked to directly. Omit for no id. */
+  id?: string;
   children: React.ReactNode;
 }) {
   return (
     <details
+      id={id}
       open={defaultOpen}
       className="group mt-6 overflow-hidden rounded-2xl border border-base-800 bg-base-900 open:border-base-700"
     >

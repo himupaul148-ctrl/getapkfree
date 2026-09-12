@@ -233,9 +233,25 @@ export default async function AppDetailPage({ params }: Props) {
       </dl>
 
       {/* ---- License / Target SDK: optional, so a separate line rather than
-          a fixed fifth grid cell — see lib/seo.ts's licenseAndTargetSdkLine. ---- */}
+          a fixed fifth grid cell — see lib/seo.ts's licenseAndTargetSdkLine.
+          The "what does this mean?" link only appears when target SDK is
+          actually part of the line, so it never dangles next to a license-only
+          fact with nothing target-SDK-related to explain. ---- */}
       {licenseAndSdk && (
-        <p className="mt-3 text-sm text-fg-dim">{licenseAndSdk}</p>
+        <p className="mt-3 text-sm text-fg-dim">
+          {licenseAndSdk}
+          {typeof latest?.target_sdk === "number" && (
+            <>
+              {" — "}
+              <Link
+                href="/blog/how-to-check-apk-target-sdk-android"
+                className="text-brand-400 hover:underline"
+              >
+                what does target SDK mean?
+              </Link>
+            </>
+          )}
+        </p>
       )}
 
       {/* ---- Primary download ----
@@ -299,12 +315,14 @@ export default async function AppDetailPage({ params }: Props) {
 
       {/* ---- Permissions (collapsed) ---- */}
       <PermissionsList
+        id="permissions"
         permissions={latest?.permissions ?? []}
         versionName={latest?.version_name ?? null}
       />
 
       {/* ---- Version history (collapsed) ---- */}
       <VersionHistory
+        id="version-history"
         versions={versions}
         appName={app.name}
         appCategory={app.category}
