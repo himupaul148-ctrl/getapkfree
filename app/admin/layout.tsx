@@ -16,6 +16,7 @@ const TABS = [
   { href: "/admin/add-external-app", label: "Add external" },
   { href: "/admin/import-apk-url", label: "Import URL" },
   { href: "/admin/apps", label: "Apps" },
+  { href: "/admin/play-proposals", label: "Play Proposals" },
   { href: "/admin/blog", label: "Blog" },
 ];
 
