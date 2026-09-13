@@ -82,6 +82,33 @@ export async function insertDiscoveryCandidate(
   return data!;
 }
 
+/**
+ * The scheduler's checkpoint: the most recent discovered_at for a given
+ * source, so a daily run can search "since the last run" instead of
+ * rescanning the same historical window every day. Deliberately reuses
+ * this existing table rather than a second one — discovered_at is
+ * already the exact timestamp a fresh row got its first "found" state,
+ * which is precisely what a checkpoint needs to mean. Returns null when
+ * no row for this source exists yet (the very first run), in which case
+ * the caller is expected to fall back to its own default lookback window
+ * — never guessed at here, since this module has no opinion on what a
+ * sensible fallback window is.
+ */
+export async function findLatestDiscoveredAt(
+  supabase: SupabaseClient,
+  source: DiscoverySource,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("play_discovery_candidates")
+    .select("discovered_at")
+    .eq("source", source)
+    .order("discovered_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ discovered_at: string }>();
+  if (error) throw error;
+  return data?.discovered_at ?? null;
+}
+
 export type DiscoveryCandidatePatch = Partial<
   Pick<DiscoveryCandidateRow, "status" | "resolved_play_url" | "package_name" | "proposal_id" | "checked_at">
 >;

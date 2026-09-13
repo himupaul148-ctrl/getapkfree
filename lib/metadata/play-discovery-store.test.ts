@@ -3,6 +3,7 @@ import { describe as group, test } from "node:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   findDiscoveryCandidate,
+  findLatestDiscoveredAt,
   insertDiscoveryCandidate,
   updateDiscoveryCandidate,
 } from "./play-discovery-store.ts";
@@ -117,5 +118,31 @@ group("updateDiscoveryCandidate", () => {
     assert.equal(fake.versions.length, 0);
     assert.equal(fake.play_import_proposals.length, 0);
     assert.deepEqual(fake.storageUploads, []);
+  });
+});
+
+group("findLatestDiscoveredAt", () => {
+  test("returns null when no row exists for this source yet — the very first run", async () => {
+    const fake = new FakeSupabase();
+    const result = await findLatestDiscoveredAt(client(fake), "github");
+    assert.equal(result, null);
+  });
+
+  test("returns the most recent discovered_at among matching-source rows", async () => {
+    const fake = new FakeSupabase();
+    fake.play_discovery_candidates.push(
+      { id: "a", source: "github", source_ref: "x/1", discovered_at: "2026-09-10T00:00:00.000Z" },
+      { id: "b", source: "github", source_ref: "x/2", discovered_at: "2026-09-13T00:00:00.000Z" },
+      { id: "c", source: "github", source_ref: "x/3", discovered_at: "2026-09-11T00:00:00.000Z" },
+    );
+    const result = await findLatestDiscoveredAt(client(fake), "github");
+    assert.equal(result, "2026-09-13T00:00:00.000Z");
+  });
+
+  test("ignores rows from a different source", async () => {
+    const fake = new FakeSupabase();
+    fake.play_discovery_candidates.push({ id: "a", source: "hn", source_ref: "1234", discovered_at: "2026-09-13T00:00:00.000Z" });
+    const result = await findLatestDiscoveredAt(client(fake), "github");
+    assert.equal(result, null);
   });
 });

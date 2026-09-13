@@ -1,0 +1,80 @@
+name: Daily Play App Discovery
+
+# Runs the completed Daily New-App Discovery pipeline once per day:
+#   GitHub discovery (lib/metadata/github-discovery.ts)
+#   -> quality filtering (the same module's own hard filters)
+#   -> Play URL resolution (lib/metadata/github-play-resolution.ts)
+#   -> Play metadata verification (fetchMetadata()/fromPlay())
+#   -> new_app proposal creation (lib/metadata/play-discovery-pipeline.ts,
+#      lib/metadata/play-proposal-store.ts)
+#   -> admin review (unchanged, separate, human-only)
+#
+# This workflow never approves, rejects, applies, or publishes anything,
+# never writes to apps/versions/Storage, and never downloads an APK — see
+# scripts/discover-play-apps.mjs's own doc comment for the same guarantee
+# at the code level. This is a separate, independent workflow from
+# .github/workflows/play-watchlist.yml (the existing watchlist refresh) —
+# neither depends on or shares any state with the other beyond the tables
+# both eventually write to.
+#
+# Required GitHub secrets (repository or environment — never printed,
+# echoed, or placed in a command-line argument; all three are passed only
+# as env vars to the one step below that needs them):
+#   SUPABASE_SERVICE_ROLE_KEY — play_discovery_candidates and
+#                               play_import_proposals both have no anon RLS
+#                               policy at all, so this unattended run needs
+#                               the service role key, exactly like
+#                               scripts/import-fdroid.mjs's own writes.
+#   NEXT_PUBLIC_SUPABASE_URL  — the project's Supabase URL. Not sensitive by
+#                               itself (it ships in every client bundle),
+#                               stored as a secret here purely for the same
+#                               hygiene reason .github/workflows/ci.yml and
+#                               play-watchlist.yml already do.
+# GITHUB_TOKEN is NOT a secret to configure — it is the token GitHub Actions
+# already injects automatically into every workflow run
+# (https://docs.github.com/en/actions/security-guides/automatic-token-authentication),
+# used here only to raise the GitHub Search API's rate limit; discovery
+# still works without it, just at a lower unauthenticated limit.
+on:
+  schedule:
+    # One run per day, at a fixed, conservative UTC time.
+    - cron: "30 3 * * *"
+  workflow_dispatch: {}
+
+# Two overlapping discovery runs are never useful — queue a second one
+# rather than cancelling the first, so a manually-triggered run is never
+# cut off by the next day's scheduled tick landing mid-run.
+concurrency:
+  group: play-discovery
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    name: Daily Play App Discovery
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Exactly: discover recent candidates -> apply hard quality filters
+      # (capped at MAX_CANDIDATES) -> resolve Play URLs -> verify Play
+      # metadata -> create pending proposals. Never --apply, never an
+      # approve/reject call, never an APK download — see
+      # scripts/discover-play-apps.mjs's own doc comment.
+      - name: Run daily discovery
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MAX_CANDIDATES: "10"
+        run: node scripts/discover-play-apps.mjs
