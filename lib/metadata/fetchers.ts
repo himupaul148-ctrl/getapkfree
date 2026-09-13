@@ -1,4 +1,10 @@
-import { CATEGORIES } from "@/lib/types";
+// Relative, with an explicit extension, not the usual "@/..." alias: this
+// module is exercised directly by scripts/import-play-metadata.mjs and by
+// plain `node --test` (see the sibling play-*.test.ts files), neither of
+// which understands tsconfig's bundler-only path aliases — the same reason
+// lib/apk/import-pipeline.ts and lib/apk/save-build.ts already use relative
+// imports for their own cross-module dependencies.
+import { CATEGORIES } from "../types.ts";
 
 export type FetchedMetadata = {
   name: string | null;
