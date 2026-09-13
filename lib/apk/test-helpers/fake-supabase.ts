@@ -4,16 +4,17 @@
  * / `.update().eq()` / `.delete().eq()` and `.storage.from().upload()/remove()/
  * getPublicUrl()` to exercise lib/apk/save-build.ts,
  * lib/apk/import-pipeline.ts, (via the play_import_proposals table)
- * lib/metadata/play-proposal-store.ts, and (via the play_watchlist table)
- * lib/metadata/play-watchlist-store.ts, without touching a real database or
- * network.
+ * lib/metadata/play-proposal-store.ts, (via the play_watchlist table)
+ * lib/metadata/play-watchlist-store.ts, and (via the play_discovery_candidates
+ * table) lib/metadata/play-discovery-store.ts, without touching a real
+ * database or network.
  *
  * Not a test file itself (no `.test.ts` suffix), so `npm test`'s
  * `lib/**\/*.test.ts` glob does not try to run it directly.
  */
 
 type Row = Record<string, unknown>;
-type TableName = "apps" | "versions" | "play_import_proposals" | "play_watchlist";
+type TableName = "apps" | "versions" | "play_import_proposals" | "play_watchlist" | "play_discovery_candidates";
 
 function randomId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
@@ -24,6 +25,7 @@ export class FakeSupabase {
   versions: Row[] = [];
   play_import_proposals: Row[] = [];
   play_watchlist: Row[] = [];
+  play_discovery_candidates: Row[] = [];
 
   storageUploads: { path: string; bytes: unknown }[] = [];
   storageRemovedPaths: string[] = [];
@@ -95,6 +97,8 @@ class FakeQueryBuilder {
   private filters: [string, unknown][] = [];
   private op: "select" | "insert" | "update" | "delete" = "select";
   private payload: Row | null = null;
+  private orderBy: { field: string; ascending: boolean } | null = null;
+  private limitTo: number | null = null;
   // Tracks whether .select() was chained after .update() — real PostgREST
   // only returns the affected rows as `data` when a caller explicitly asks
   // for them that way; without it, an update's `data` is always null. This
@@ -151,12 +155,38 @@ class FakeQueryBuilder {
     return this;
   }
 
+  // Used by lib/metadata/play-proposal-store.ts's findAnyProposalForPackage()
+  // to get the most recent matching row. Actually sorts/limits, rather than
+  // a no-op, so a test seeding multiple rows for the same package can rely
+  // on real "most recent" behavior instead of arbitrary array order.
+  order(field: string, opts?: { ascending?: boolean }) {
+    this.orderBy = { field, ascending: opts?.ascending ?? true };
+    return this;
+  }
+
+  limit(count: number) {
+    this.limitTo = count;
+    return this;
+  }
+
   private rows(): Row[] {
     return this.db[this.table];
   }
 
   private matching(): Row[] {
-    return this.rows().filter((row) => this.filters.every(([f, v]) => row[f] === v));
+    let result = this.rows().filter((row) => this.filters.every(([f, v]) => row[f] === v));
+    if (this.orderBy) {
+      const { field, ascending } = this.orderBy;
+      result = [...result].sort((a, b) => {
+        const av = a[field];
+        const bv = b[field];
+        if (av === bv) return 0;
+        const cmp = av! > bv! ? 1 : -1;
+        return ascending ? cmp : -cmp;
+      });
+    }
+    if (this.limitTo !== null) result = result.slice(0, this.limitTo);
+    return result;
   }
 
   private checkForcedError(op: "select" | "insert" | "update"): PgError | null {
@@ -231,6 +261,31 @@ class FakeQueryBuilder {
           applied_at: null,
           app_id: null,
           previous_fields: null,
+          ...this.payload,
+        };
+        this.rows().push(row);
+        return { data: row as T, error: null };
+      }
+      if (this.table === "play_discovery_candidates") {
+        // Mirrors play_discovery_candidates_source_ref_unique: UNIQUE(source,
+        // source_ref). This fake's insert never accepts a caller-supplied
+        // status/resolved_play_url/package_name/proposal_id — only source,
+        // source_ref, candidate_name, and score — matching
+        // insertDiscoveryCandidate()'s own restriction.
+        const clash = this.rows().find(
+          (r) => r.source === this.payload!.source && r.source_ref === this.payload!.source_ref,
+        );
+        if (clash) return { data: null, error: uniqueViolation("play_discovery_candidates_source_ref_unique") };
+        const row: Row = {
+          id: randomId("discovery"),
+          status: "found",
+          resolved_play_url: null,
+          package_name: null,
+          proposal_id: null,
+          discovered_at: new Date().toISOString(),
+          checked_at: null,
+          candidate_name: null,
+          score: null,
           ...this.payload,
         };
         this.rows().push(row);

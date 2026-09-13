@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe as group, test } from "node:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  findAnyProposalForPackage,
   findCurrentApp,
   insertProposal,
   proposeForPackage,
@@ -375,5 +376,72 @@ group("summarizeProposeRun", () => {
       superseded: 0,
       inserted: 0,
     });
+  });
+});
+
+group("findAnyProposalForPackage", () => {
+  function seedProposalRow(fake: FakeSupabase, overrides: Record<string, unknown> = {}) {
+    const row = {
+      id: "proposal-1",
+      proposal_type: "new_app",
+      package_name: "com.discovered.app",
+      play_url: "https://play.google.com/store/apps/details?id=com.discovered.app",
+      app_id: null,
+      proposed_fields: { name: "Discovered App" },
+      previous_fields: null,
+      status: "pending",
+      created_at: new Date().toISOString(),
+      decided_at: null,
+      decided_by: null,
+      rejection_reason: null,
+      applied_at: null,
+      ...overrides,
+    };
+    fake.play_import_proposals.push(row);
+    return row;
+  }
+
+  test("returns null when no proposal exists for the package+type", async () => {
+    const fake = new FakeSupabase();
+    const result = await findAnyProposalForPackage(client(fake), "com.discovered.app", "new_app");
+    assert.equal(result, null);
+  });
+
+  test("finds a pending proposal", async () => {
+    const fake = new FakeSupabase();
+    seedProposalRow(fake, { status: "pending" });
+    const result = await findAnyProposalForPackage(client(fake), "com.discovered.app", "new_app");
+    assert.equal(result?.id, "proposal-1");
+    assert.equal(result?.status, "pending");
+  });
+
+  test("also finds a REJECTED proposal — unlike the pending-only check, this must not miss it", async () => {
+    const fake = new FakeSupabase();
+    seedProposalRow(fake, { status: "rejected" });
+    const result = await findAnyProposalForPackage(client(fake), "com.discovered.app", "new_app");
+    assert.equal(result?.status, "rejected");
+  });
+
+  test("also finds an applied/expired/superseded proposal", async () => {
+    for (const status of ["applied", "expired", "superseded"]) {
+      const fake = new FakeSupabase();
+      seedProposalRow(fake, { status });
+      const result = await findAnyProposalForPackage(client(fake), "com.discovered.app", "new_app");
+      assert.equal(result?.status, status);
+    }
+  });
+
+  test("does not match a different proposal_type for the same package", async () => {
+    const fake = new FakeSupabase();
+    seedProposalRow(fake, { proposal_type: "metadata_update" });
+    const result = await findAnyProposalForPackage(client(fake), "com.discovered.app", "new_app");
+    assert.equal(result, null);
+  });
+
+  test("does not match a different package_name", async () => {
+    const fake = new FakeSupabase();
+    seedProposalRow(fake, { package_name: "com.other.app" });
+    const result = await findAnyProposalForPackage(client(fake), "com.discovered.app", "new_app");
+    assert.equal(result, null);
   });
 });

@@ -16,6 +16,7 @@ import {
   classifyProposal,
   type CurrentAppRow,
   type ProposalRow,
+  type ProposalStatus,
   type ProposalType,
 } from "./play-proposals.ts";
 import type { FetchedMetadata } from "./fetchers.ts";
@@ -57,6 +58,35 @@ async function findPendingProposal(
     .eq("proposal_type", proposalType)
     .eq("status", "pending")
     .maybeSingle<{ id: string }>();
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Read-only lookup used by the discovery pipeline's duplicate-protection
+ * check (lib/metadata/play-discovery-pipeline.ts): does ANY proposal —
+ * regardless of status — already exist for this (package_name,
+ * proposal_type)? Unlike findPendingProposal() above, this deliberately
+ * also matches a 'rejected'/'applied'/'expired'/'superseded' row: a
+ * package an admin already declined once must not be silently re-proposed
+ * just because a discovery source (e.g. the same GitHub repo, found
+ * again on a later run) surfaces it a second time. Never used by the
+ * insert/supersede path itself — only by a caller deciding whether to
+ * call proposeForPackage() at all.
+ */
+export async function findAnyProposalForPackage(
+  supabase: SupabaseClient,
+  packageName: string,
+  proposalType: ProposalType,
+): Promise<{ id: string; status: ProposalStatus } | null> {
+  const { data, error } = await supabase
+    .from("play_import_proposals")
+    .select("id, status")
+    .eq("package_name", packageName)
+    .eq("proposal_type", proposalType)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ id: string; status: ProposalStatus }>();
   if (error) throw error;
   return data;
 }
