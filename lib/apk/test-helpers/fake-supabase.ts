@@ -2,14 +2,17 @@
  * A minimal, in-memory stand-in for the Supabase query builder — just
  * enough of `.from().select().eq().maybeSingle()` / `.insert().select().single()`
  * / `.update().eq()` / `.delete().eq()` and `.storage.from().upload()/remove()/
- * getPublicUrl()` to exercise lib/apk/save-build.ts and
- * lib/apk/import-pipeline.ts without touching a real database or network.
+ * getPublicUrl()` to exercise lib/apk/save-build.ts,
+ * lib/apk/import-pipeline.ts, and (via the play_import_proposals table)
+ * lib/metadata/play-proposal-store.ts, without touching a real database or
+ * network.
  *
  * Not a test file itself (no `.test.ts` suffix), so `npm test`'s
  * `lib/**\/*.test.ts` glob does not try to run it directly.
  */
 
 type Row = Record<string, unknown>;
+type TableName = "apps" | "versions" | "play_import_proposals";
 
 function randomId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
@@ -18,6 +21,7 @@ function randomId(prefix: string): string {
 export class FakeSupabase {
   apps: Row[] = [];
   versions: Row[] = [];
+  play_import_proposals: Row[] = [];
 
   storageUploads: { path: string; bytes: unknown }[] = [];
   storageRemovedPaths: string[] = [];
@@ -29,7 +33,7 @@ export class FakeSupabase {
    * exercise a race-recovery code path deterministically, without any real
    * concurrency.
    */
-  onBeforeInsert: ((table: "apps" | "versions", payload: Row) => void) | null = null;
+  onBeforeInsert: ((table: TableName, payload: Row) => void) | null = null;
 
   /**
    * Test-only hook fired just before an update's WHERE-matching runs — lets
@@ -38,7 +42,7 @@ export class FakeSupabase {
    * (e.g. setVersionPublished's optimistic-concurrency check), without any
    * real concurrency.
    */
-  onBeforeUpdate: ((table: "apps" | "versions", payload: Row) => void) | null = null;
+  onBeforeUpdate: ((table: TableName, payload: Row) => void) | null = null;
 
   /**
    * Error injection: every operation matching `table`+`op` returns this
@@ -48,9 +52,9 @@ export class FakeSupabase {
    * pre-check (also an "apps"/"select") must be seen failing exactly like
    * the authoritative lookup that follows it, not just the first of the two.
    */
-  forceError: { table: "apps" | "versions"; op: "select" | "insert" | "update"; error: PgError } | null = null;
+  forceError: { table: TableName; op: "select" | "insert" | "update"; error: PgError } | null = null;
 
-  from(table: "apps" | "versions") {
+  from(table: TableName) {
     return new FakeQueryBuilder(this, table);
   }
 
@@ -97,9 +101,9 @@ class FakeQueryBuilder {
   private wantsSelectedRows = false;
 
   private db: FakeSupabase;
-  private table: "apps" | "versions";
+  private table: TableName;
 
-  constructor(db: FakeSupabase, table: "apps" | "versions") {
+  constructor(db: FakeSupabase, table: TableName) {
     this.db = db;
     this.table = table;
   }
@@ -199,6 +203,34 @@ class FakeQueryBuilder {
         );
         if (clash) return { data: null, error: uniqueViolation("versions_app_id_version_code_key") };
         const row: Row = { id: randomId("version"), download_count: 0, ...this.payload };
+        this.rows().push(row);
+        return { data: row as T, error: null };
+      }
+      if (this.table === "play_import_proposals") {
+        // Mirrors play_import_proposals_pending_unique: at most one row per
+        // (package_name, proposal_type) may have status='pending' at a
+        // time. The real table's status default is 'pending' too, and this
+        // fake's insert never accepts a caller-supplied status, so a fresh
+        // insert is always the row this clash-check needs to guard against.
+        const clash = this.rows().find(
+          (r) =>
+            r.package_name === this.payload!.package_name &&
+            r.proposal_type === this.payload!.proposal_type &&
+            r.status === "pending",
+        );
+        if (clash) return { data: null, error: uniqueViolation("play_import_proposals_pending_unique") };
+        const row: Row = {
+          id: randomId("proposal"),
+          status: "pending",
+          created_at: new Date().toISOString(),
+          decided_at: null,
+          decided_by: null,
+          rejection_reason: null,
+          applied_at: null,
+          app_id: null,
+          previous_fields: null,
+          ...this.payload,
+        };
         this.rows().push(row);
         return { data: row as T, error: null };
       }

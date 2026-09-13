@@ -1,33 +1,41 @@
 /**
- * Phase 1 + Phase 2: Google Play metadata discovery, and (with explicit
- * confirmation) guarded database import.
+ * Phase 1 (dry-run) + Phase 2 (guarded apply) + Phase 4c (propose) of the
+ * Google Play metadata import workflow.
  *
  *   npm run import-play-metadata -- --input=play-urls.txt --dry-run
  *   npm run import-play-metadata -- --input=play-urls.txt --apply --confirm=PLAY-METADATA
+ *   npm run import-play-metadata -- --input=play-urls.txt --propose --confirm=PLAY-METADATA
  *
  * Reads an admin-curated list of public Google Play app-listing URLs and,
- * for each one, either reports (dry-run, the default) or actually applies
- * (apply mode, explicitly confirmed) what an import would do — new apps as
- * source_type='external' app rows (metadata only, no versions row — see
- * lib/metadata/play-apply.ts's own doc comment for why), existing apps
- * updated only on their Play-provided display fields, respecting
- * apps.manual_fields throughout.
+ * for each one:
+ *   --dry-run (default) — reports what would happen, writes nothing.
+ *   --apply             — writes directly to apps/versions (Phase 2's
+ *                          guarded import — new apps as source_type='external'
+ *                          app rows, metadata only, no versions row; see
+ *                          lib/metadata/play-apply.ts's own doc comment).
+ *   --propose           — writes ONLY to public.play_import_proposals (Phase
+ *                          4c) — never touches apps/versions/storage at all.
+ *                          Every proposal is created 'pending'; nothing here
+ *                          approves, applies, or publishes anything. See
+ *                          lib/metadata/play-proposal-store.ts.
  *
- * This is deliberately still metadata-only. Google Play does not distribute
- * APKs through any public, unauthenticated channel the way F-Droid does
- * (see scripts/import-fdroid.mjs's own comment) — every "download this
- * Play app's APK" tool works by calling Play's private, authenticated
- * client protocol, which this project will not do. So this script never
- * downloads a binary, from Play or anywhere else, in either mode. It also
- * never fabricates version_code/version_name — Play's public listing page
- * exposes neither, so no versions row is created at all for a new app.
+ * This is deliberately still metadata-only in every mode. Google Play does
+ * not distribute APKs through any public, unauthenticated channel the way
+ * F-Droid does (see scripts/import-fdroid.mjs's own comment) — every
+ * "download this Play app's APK" tool works by calling Play's private,
+ * authenticated client protocol, which this project will not do. So this
+ * script never downloads a binary, from Play or anywhere else, in any mode.
+ * It also never fabricates version_code/version_name — Play's public
+ * listing page exposes neither, so no versions row is created at all,
+ * whether an app is created directly (--apply) or only proposed (--propose).
  *
  * Read access uses the public anon key throughout (the same one
  * lib/supabase/public.ts uses) — RLS already makes `apps` publicly
- * readable. Writes (apply mode only) need the service-role key, exactly
- * like scripts/import-fdroid.mjs's own writes do, since RLS's "admins
- * manage apps"/"admins manage versions" policies gate authenticated writes
- * on is_admin(), which this unattended script has no session to satisfy.
+ * readable. Writes (--apply and --propose both) need the service-role key,
+ * exactly like scripts/import-fdroid.mjs's own writes do, since RLS's
+ * "admins manage apps"/"admins manage versions"/"admins manage play import
+ * proposals" policies all gate authenticated writes on is_admin(), which
+ * this unattended script has no session to satisfy.
  */
 
 import { readFile } from "node:fs/promises";
@@ -44,6 +52,7 @@ import {
   summarizeApply,
   writableChangesFor,
 } from "../lib/metadata/play-apply.ts";
+import { proposeForPackage, summarizeProposeRun } from "../lib/metadata/play-proposal-store.ts";
 
 // ---------------------------------------------------------------- arguments
 
@@ -55,25 +64,32 @@ const value = (name) => {
 };
 
 const HELP_TEXT = `
-Google Play metadata import — Phase 1 (dry-run) + Phase 2 (guarded apply)
+Google Play metadata import — dry-run / guarded apply / propose
 
 Usage:
   npm run import-play-metadata -- --input=<file> --dry-run
   npm run import-play-metadata -- --input=<file> --apply --confirm=PLAY-METADATA
+  npm run import-play-metadata -- --input=<file> --propose --confirm=PLAY-METADATA
 
 Options:
   --input=<file>    Path to a file with one Google Play app URL per line.
                      Blank lines and lines starting with # are ignored.
   --dry-run          Plan only — reports what would happen, writes nothing.
-                     This is the default posture; running with neither
-                     --dry-run nor --apply is treated as --dry-run.
-  --apply            Actually write to the database. Requires
+                     This is the default posture; running with none of
+                     --dry-run/--apply/--propose is treated as --dry-run.
+  --apply            Write directly to apps/versions. Requires
                      --confirm=PLAY-METADATA in the exact same invocation —
                      --apply alone is refused.
-  --confirm=<value>  Must be exactly PLAY-METADATA to pair with --apply.
+  --propose          Write ONLY to public.play_import_proposals — never to
+                     apps, versions, or Storage, and never publishes
+                     anything. Requires --confirm=PLAY-METADATA in the exact
+                     same invocation — --propose alone is refused. Cannot be
+                     combined with --apply.
+  --confirm=<value>  Must be exactly PLAY-METADATA to pair with --apply or
+                     --propose.
   --help             Show this message.
 
-What this does, in both modes:
+What --dry-run and --apply do:
   - Validates each line is a public play.google.com app-details URL and
     extracts its package id.
   - Fetches display metadata from the public Play listing page (fromPlay(),
@@ -98,7 +114,22 @@ What this does, in both modes:
     listing with a real version is a separate admin action this tool does
     not perform.
 
-What this never does, in either mode:
+What --propose does instead:
+  - Same fetch/classify/manual-field logic as above, but the outcome is
+    written as a 'pending' row in public.play_import_proposals rather than
+    applied directly — proposal_type ('new_app'/'metadata_update'),
+    package_name, play_url, app_id (null for new_app), proposed_fields, and
+    previous_fields only. Nothing else.
+  - An existing pending proposal for the same (package_name, proposal_type)
+    is marked 'superseded' — never deleted — before the fresh one is
+    inserted, so proposal history is always preserved.
+  - Unchanged or F-Droid-owned/ineligible packages create no proposal row
+    at all and are reported as skipped/unchanged.
+  - Nothing here is approved, applied, or published — a proposal sits
+    'pending' until a future, separate admin action (not part of this
+    script) reviews it.
+
+What this never does, in any mode:
   - Never downloads an APK, from Play or anywhere else.
   - Never calls any private/internal Play Store API.
   - Never writes to Storage.
@@ -108,6 +139,8 @@ What this never does, in either mode:
   - Never creates a versions row, or any invented version_code, version_name,
     target_sdk, min_android_version, file_size, permissions, or changelog.
   - Never publishes anything — there is no version to publish.
+  - --propose specifically never writes to apps or versions at all — only
+    to public.play_import_proposals.
 `;
 
 if (flag("help") || args.length === 0) {
@@ -116,7 +149,11 @@ if (flag("help") || args.length === 0) {
 }
 
 const INPUT_PATH = value("input");
-const writeMode = resolveWriteMode({ apply: flag("apply"), confirm: value("confirm") });
+const writeMode = resolveWriteMode({
+  apply: flag("apply"),
+  propose: flag("propose"),
+  confirm: value("confirm"),
+});
 
 if (!INPUT_PATH) {
   console.error("\n  --input=<file> is required. Run with --help for usage.\n");
@@ -127,6 +164,7 @@ if (writeMode.mode === "error") {
   process.exit(1);
 }
 const APPLYING = writeMode.mode === "apply";
+const PROPOSING = writeMode.mode === "propose";
 
 // ------------------------------------------------------------------- setup
 
@@ -142,12 +180,12 @@ function fail(message) {
 if (!SUPABASE_URL || !ANON_KEY) {
   fail("NEXT_PUBLIC_SUPABASE_URL and/or NEXT_PUBLIC_SUPABASE_ANON_KEY are missing from .env.local.");
 }
-if (APPLYING && !SERVICE_KEY) {
+if ((APPLYING || PROPOSING) && !SERVICE_KEY) {
   fail(
     "SUPABASE_SERVICE_ROLE_KEY is missing from .env.local.\n" +
-      "  Apply mode writes to the apps/versions tables, which RLS only permits for an\n" +
-      "  authenticated admin session or the service role — this script has neither\n" +
-      "  session, so it needs the service role key, exactly like scripts/import-fdroid.mjs.\n" +
+      "  Apply/propose mode writes to a table RLS only permits for an authenticated\n" +
+      "  admin session or the service role — this script has neither session, so it\n" +
+      "  needs the service role key, exactly like scripts/import-fdroid.mjs.\n" +
       "  (Dry-run mode never needs it — try --dry-run instead.)",
   );
 }
@@ -157,12 +195,17 @@ if (APPLYING && !SERVICE_KEY) {
 const readClient = createClient(SUPABASE_URL, ANON_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
-// Writes (apply mode only) need the service role, which bypasses RLS —
-// local/CI use only, never shipped to a browser, exactly like
-// scripts/import-fdroid.mjs's own client.
-const writeClient = APPLYING
-  ? createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
-  : null;
+// Writes (apply/propose mode only) need the service role, which bypasses
+// RLS — local/CI use only, never shipped to a browser, exactly like
+// scripts/import-fdroid.mjs's own client. --propose uses this SAME client
+// for its one read (the current app row) too — see
+// lib/metadata/play-proposal-store.ts's proposeForPackage(); that's a read
+// of already-public data either way, so there is no additional exposure
+// from reusing it rather than juggling a second client for that one call.
+const writeClient =
+  APPLYING || PROPOSING
+    ? createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
+    : null;
 
 // No official Play rate-limit contract exists to pace against (unlike
 // VirusTotal's documented 4/min — see lib/apk/virustotal.ts), so this is a
@@ -345,6 +388,107 @@ async function processUrl(line) {
   }
 }
 
+// ----------------------------------------------------------------- propose
+
+/**
+ * --propose's own per-line handler — deliberately separate from
+ * processUrl() above rather than threaded through its APPLYING branches:
+ * propose writes to a different table entirely (play_import_proposals,
+ * never apps/versions), through one single call
+ * (proposeForPackage — lib/metadata/play-proposal-store.ts) that already
+ * does the current-app lookup, classification, shaping, and insert-with-
+ * supersede internally. Sharing processUrl()'s control flow would only
+ * make it harder to see that propose mode's write surface is exactly one
+ * table.
+ */
+async function processUrlForPropose(line) {
+  const parsed = parsePlayUrl(line);
+  if (!parsed.ok) {
+    console.log(`  ✗ ${line}`);
+    console.log(`      skipped — ${parsed.reason}`);
+    return { status: "invalid_url" };
+  }
+
+  let metadata;
+  try {
+    // fetchMetadata() dispatches purely on hostname; every URL reaching
+    // here has already been confirmed to be play.google.com by
+    // parsePlayUrl() above, so this always calls fromPlay() internally.
+    metadata = await fetchMetadata(parsed.url);
+  } catch (caught) {
+    const reason = caught instanceof Error ? caught.message : String(caught);
+    console.log(`  ✗ ${parsed.url}`);
+    console.log(`      package: ${parsed.packageName}`);
+    console.log(`      fetch failed — ${reason}`);
+    return { status: "fetch_failed" };
+  }
+
+  try {
+    const outcome = await proposeForPackage(writeClient, {
+      fetched: metadata,
+      packageName: parsed.packageName,
+      playUrl: parsed.url,
+    });
+
+    if (outcome.status === "ineligible") {
+      console.log(`  · ${parsed.url}`);
+      console.log(`      SKIPPED — package: ${parsed.packageName} — ${outcome.reason}`);
+      return outcome;
+    }
+
+    if (outcome.status === "unchanged") {
+      console.log(`  = ${parsed.url}`);
+      console.log(`      UNCHANGED — package: ${parsed.packageName} — no proposal created`);
+      return outcome;
+    }
+
+    if (outcome.status === "new_app") {
+      console.log(`  + ${parsed.url}`);
+      console.log(`      NEW PROPOSAL — type: new_app, package: ${parsed.packageName}`);
+      console.log(`        proposed fields:`);
+      for (const [field, val] of Object.entries(outcome.row.proposed_fields)) {
+        console.log(`          ${field}: ${formatValue(val)}`);
+      }
+      if (outcome.superseded) console.log(`        (superseded a previous pending proposal for this package)`);
+      console.log(`        proposal id: ${outcome.proposalId}`);
+      return outcome;
+    }
+
+    // metadata_update
+    console.log(`  ~ ${parsed.url}`);
+    console.log(
+      `      UPDATED PROPOSAL — type: metadata_update, package: ${parsed.packageName}, app slug: "${outcome.appSlug}"`,
+    );
+    console.log(`        changed fields:`);
+    for (const field of Object.keys(outcome.row.proposed_fields)) {
+      console.log(`          ${field}: ${formatValue(outcome.row.previous_fields?.[field])} -> ${formatValue(outcome.row.proposed_fields[field])}`);
+    }
+    if (outcome.superseded) console.log(`        (superseded a previous pending proposal for this package)`);
+    console.log(`        proposal id: ${outcome.proposalId}`);
+    return outcome;
+  } catch (caught) {
+    const reason = caught instanceof Error ? caught.message : String(caught);
+    console.log(`  ✗ ${parsed.url}`);
+    console.log(`      package: ${parsed.packageName}`);
+    console.log(`      FAILED — ${reason}`);
+    return { status: "failed" };
+  }
+}
+
+function printProposeSummary(summary) {
+  console.log("\n  Propose summary");
+  console.log(`  ---------------`);
+  console.log(`  total URLs:                 ${summary.totalUrls}`);
+  console.log(`  successful fetches:         ${summary.successfulFetches}`);
+  console.log(`  failures:                   ${summary.failures}`);
+  console.log(`  new proposals:              ${summary.newProposals}`);
+  console.log(`  metadata-update proposals:  ${summary.metadataUpdateProposals}`);
+  console.log(`  unchanged:                  ${summary.unchanged}`);
+  console.log(`  skipped:                    ${summary.skipped}`);
+  console.log(`  superseded:                 ${summary.superseded}`);
+  console.log(`  inserted:                   ${summary.inserted}`);
+}
+
 function printPreSummary(summary) {
   console.log("\n  Plan summary");
   console.log(`  ------------`);
@@ -369,9 +513,8 @@ function printApplySummary(summary) {
 }
 
 async function main() {
-  console.log(
-    `\nGoogle Play metadata import (${APPLYING ? "APPLY" : "DRY RUN"}) — reading ${INPUT_PATH}\n`,
-  );
+  const modeLabel = APPLYING ? "APPLY" : PROPOSING ? "PROPOSE" : "DRY RUN";
+  console.log(`\nGoogle Play metadata import (${modeLabel}) — reading ${INPUT_PATH}\n`);
 
   let raw;
   try {
@@ -384,6 +527,25 @@ async function main() {
   const lines = parseInputLines(raw);
   if (lines.length === 0) {
     console.log("  No URLs to process (file is empty after filtering blanks/comments).\n");
+    return;
+  }
+
+  if (PROPOSING) {
+    const outcomes = [];
+    for (let i = 0; i < lines.length; i++) {
+      const outcome = await processUrlForPropose(lines[i]);
+      outcomes.push(outcome);
+      // Pacing only matters between real network requests; an invalid-URL
+      // line is caught before any fetch and costs no delay.
+      if (i < lines.length - 1 && outcome.status !== "invalid_url") await sleep(PLAY_FETCH_INTERVAL_MS);
+    }
+
+    printProposeSummary(summarizeProposeRun(outcomes));
+    console.log(
+      "\n  PROPOSE MODE — proposals written to play_import_proposals only.\n" +
+        "  No apps, versions, or storage were modified.\n" +
+        "  Nothing was published.\n",
+    );
     return;
   }
 

@@ -27,3 +27,36 @@ group("resolveWriteMode", () => {
     assert.deepEqual(resolveWriteMode({ apply: true, confirm: "PLAY-METADATA" }), { mode: "apply" });
   });
 });
+
+group("resolveWriteMode — --propose", () => {
+  test("no --apply and no --propose -> dry-run, exactly as before --propose existed", () => {
+    assert.deepEqual(resolveWriteMode({ apply: false, confirm: undefined }), { mode: "dry-run" });
+  });
+
+  test("--propose with no --confirm at all is an error, not a silent dry-run", () => {
+    const result = resolveWriteMode({ apply: false, propose: true, confirm: undefined });
+    assert.equal(result.mode, "error");
+  });
+
+  test("--propose with the wrong confirm value is an error", () => {
+    const result = resolveWriteMode({ apply: false, propose: true, confirm: "yes" });
+    assert.equal(result.mode, "error");
+  });
+
+  test("--propose with exactly the right confirm value -> propose", () => {
+    assert.deepEqual(
+      resolveWriteMode({ apply: false, propose: true, confirm: "PLAY-METADATA" }),
+      { mode: "propose" },
+    );
+  });
+
+  test("--apply and --propose together is always an error, even with a correct --confirm", () => {
+    const result = resolveWriteMode({ apply: true, propose: true, confirm: "PLAY-METADATA" });
+    assert.equal(result.mode, "error");
+  });
+
+  test("propose defaults to false when omitted — every Phase 2 call site keeps its exact original behavior", () => {
+    assert.deepEqual(resolveWriteMode({ apply: false, confirm: undefined }), { mode: "dry-run" });
+    assert.deepEqual(resolveWriteMode({ apply: true, confirm: "PLAY-METADATA" }), { mode: "apply" });
+  });
+});
