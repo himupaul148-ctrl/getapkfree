@@ -3,8 +3,9 @@
  * enough of `.from().select().eq().maybeSingle()` / `.insert().select().single()`
  * / `.update().eq()` / `.delete().eq()` and `.storage.from().upload()/remove()/
  * getPublicUrl()` to exercise lib/apk/save-build.ts,
- * lib/apk/import-pipeline.ts, and (via the play_import_proposals table)
- * lib/metadata/play-proposal-store.ts, without touching a real database or
+ * lib/apk/import-pipeline.ts, (via the play_import_proposals table)
+ * lib/metadata/play-proposal-store.ts, and (via the play_watchlist table)
+ * lib/metadata/play-watchlist-store.ts, without touching a real database or
  * network.
  *
  * Not a test file itself (no `.test.ts` suffix), so `npm test`'s
@@ -12,7 +13,7 @@
  */
 
 type Row = Record<string, unknown>;
-type TableName = "apps" | "versions" | "play_import_proposals";
+type TableName = "apps" | "versions" | "play_import_proposals" | "play_watchlist";
 
 function randomId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
@@ -22,6 +23,7 @@ export class FakeSupabase {
   apps: Row[] = [];
   versions: Row[] = [];
   play_import_proposals: Row[] = [];
+  play_watchlist: Row[] = [];
 
   storageUploads: { path: string; bytes: unknown }[] = [];
   storageRemovedPaths: string[] = [];
@@ -249,6 +251,15 @@ class FakeQueryBuilder {
       const toRemove = new Set(this.matching());
       this.db[this.table] = this.rows().filter((r) => !toRemove.has(r));
       return { data: null, error: null };
+    }
+
+    if (this.op === "select") {
+      // Plain multi-row read (no .maybeSingle()/.single() chained) — used by
+      // lib/metadata/play-watchlist-store.ts's listWatchlistRows(), which
+      // needs every matching row back, not just the first.
+      const forced = this.checkForcedError("select");
+      if (forced) return { data: null, error: forced };
+      return { data: this.matching() as T, error: null };
     }
 
     return { data: null, error: null };

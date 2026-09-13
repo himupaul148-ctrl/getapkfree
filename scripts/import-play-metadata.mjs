@@ -53,6 +53,7 @@ import {
   writableChangesFor,
 } from "../lib/metadata/play-apply.ts";
 import { proposeForPackage, summarizeProposeRun } from "../lib/metadata/play-proposal-store.ts";
+import { runWatchlistPropose } from "../lib/metadata/play-watchlist-runner.ts";
 
 // ---------------------------------------------------------------- arguments
 
@@ -70,21 +71,35 @@ Usage:
   npm run import-play-metadata -- --input=<file> --dry-run
   npm run import-play-metadata -- --input=<file> --apply --confirm=PLAY-METADATA
   npm run import-play-metadata -- --input=<file> --propose --confirm=PLAY-METADATA
+  npm run import-play-metadata -- --watchlist --propose --confirm=PLAY-METADATA
 
 Options:
   --input=<file>    Path to a file with one Google Play app URL per line.
                      Blank lines and lines starting with # are ignored.
+                     Cannot be combined with --watchlist.
+  --watchlist        Read the finite, admin-curated set of packages from
+                     public.play_watchlist (enabled = true rows only)
+                     instead of --input=<file>. Never discovers or fetches
+                     any package outside that table. Only supported
+                     together with --propose — there is no --watchlist
+                     --dry-run or --watchlist --apply mode. Disabled rows
+                     are skipped entirely, including their health
+                     timestamps. See lib/metadata/play-watchlist-runner.ts.
   --dry-run          Plan only — reports what would happen, writes nothing.
                      This is the default posture; running with none of
                      --dry-run/--apply/--propose is treated as --dry-run.
+                     Not available with --watchlist.
   --apply            Write directly to apps/versions. Requires
                      --confirm=PLAY-METADATA in the exact same invocation —
-                     --apply alone is refused.
-  --propose          Write ONLY to public.play_import_proposals — never to
-                     apps, versions, or Storage, and never publishes
-                     anything. Requires --confirm=PLAY-METADATA in the exact
-                     same invocation — --propose alone is refused. Cannot be
-                     combined with --apply.
+                     --apply alone is refused. Not available with
+                     --watchlist.
+  --propose          Write ONLY to public.play_import_proposals (plus, in
+                     --watchlist mode, health fields on public.play_watchlist
+                     itself) — never to apps, versions, or Storage, and
+                     never publishes anything. Requires
+                     --confirm=PLAY-METADATA in the exact same invocation —
+                     --propose alone is refused. Cannot be combined with
+                     --apply. Required when --watchlist is set.
   --confirm=<value>  Must be exactly PLAY-METADATA to pair with --apply or
                      --propose.
   --help             Show this message.
@@ -149,18 +164,29 @@ if (flag("help") || args.length === 0) {
 }
 
 const INPUT_PATH = value("input");
+const WATCHLIST = flag("watchlist");
 const writeMode = resolveWriteMode({
   apply: flag("apply"),
   propose: flag("propose"),
   confirm: value("confirm"),
 });
 
-if (!INPUT_PATH) {
-  console.error("\n  --input=<file> is required. Run with --help for usage.\n");
+if (WATCHLIST && INPUT_PATH) {
+  console.error("\n  --watchlist cannot be combined with --input=<file> — choose one source.\n");
+  process.exit(1);
+}
+if (!WATCHLIST && !INPUT_PATH) {
+  console.error("\n  --input=<file> is required unless --watchlist is set. Run with --help for usage.\n");
   process.exit(1);
 }
 if (writeMode.mode === "error") {
   console.error(`\n  ${writeMode.reason}\n`);
+  process.exit(1);
+}
+if (WATCHLIST && writeMode.mode !== "propose") {
+  console.error(
+    "\n  --watchlist requires --propose (and --confirm=PLAY-METADATA) — --dry-run and --apply are not supported in watchlist mode.\n",
+  );
   process.exit(1);
 }
 const APPLYING = writeMode.mode === "apply";
@@ -391,6 +417,50 @@ async function processUrl(line) {
 // ----------------------------------------------------------------- propose
 
 /**
+ * Prints one proposeForPackage() outcome — shared verbatim between the
+ * file-based --propose mode below and --watchlist mode
+ * (runWatchlistCli()), so the two never grow diverging copies of the same
+ * formatting.
+ */
+function printProposeOutcome(parsed, outcome) {
+  if (outcome.status === "ineligible") {
+    console.log(`  · ${parsed.url}`);
+    console.log(`      SKIPPED — package: ${parsed.packageName} — ${outcome.reason}`);
+    return;
+  }
+
+  if (outcome.status === "unchanged") {
+    console.log(`  = ${parsed.url}`);
+    console.log(`      UNCHANGED — package: ${parsed.packageName} — no proposal created`);
+    return;
+  }
+
+  if (outcome.status === "new_app") {
+    console.log(`  + ${parsed.url}`);
+    console.log(`      NEW PROPOSAL — type: new_app, package: ${parsed.packageName}`);
+    console.log(`        proposed fields:`);
+    for (const [field, val] of Object.entries(outcome.row.proposed_fields)) {
+      console.log(`          ${field}: ${formatValue(val)}`);
+    }
+    if (outcome.superseded) console.log(`        (superseded a previous pending proposal for this package)`);
+    console.log(`        proposal id: ${outcome.proposalId}`);
+    return;
+  }
+
+  // metadata_update
+  console.log(`  ~ ${parsed.url}`);
+  console.log(
+    `      UPDATED PROPOSAL — type: metadata_update, package: ${parsed.packageName}, app slug: "${outcome.appSlug}"`,
+  );
+  console.log(`        changed fields:`);
+  for (const field of Object.keys(outcome.row.proposed_fields)) {
+    console.log(`          ${field}: ${formatValue(outcome.row.previous_fields?.[field])} -> ${formatValue(outcome.row.proposed_fields[field])}`);
+  }
+  if (outcome.superseded) console.log(`        (superseded a previous pending proposal for this package)`);
+  console.log(`        proposal id: ${outcome.proposalId}`);
+}
+
+/**
  * --propose's own per-line handler — deliberately separate from
  * processUrl() above rather than threaded through its APPLYING branches:
  * propose writes to a different table entirely (play_import_proposals,
@@ -429,42 +499,7 @@ async function processUrlForPropose(line) {
       packageName: parsed.packageName,
       playUrl: parsed.url,
     });
-
-    if (outcome.status === "ineligible") {
-      console.log(`  · ${parsed.url}`);
-      console.log(`      SKIPPED — package: ${parsed.packageName} — ${outcome.reason}`);
-      return outcome;
-    }
-
-    if (outcome.status === "unchanged") {
-      console.log(`  = ${parsed.url}`);
-      console.log(`      UNCHANGED — package: ${parsed.packageName} — no proposal created`);
-      return outcome;
-    }
-
-    if (outcome.status === "new_app") {
-      console.log(`  + ${parsed.url}`);
-      console.log(`      NEW PROPOSAL — type: new_app, package: ${parsed.packageName}`);
-      console.log(`        proposed fields:`);
-      for (const [field, val] of Object.entries(outcome.row.proposed_fields)) {
-        console.log(`          ${field}: ${formatValue(val)}`);
-      }
-      if (outcome.superseded) console.log(`        (superseded a previous pending proposal for this package)`);
-      console.log(`        proposal id: ${outcome.proposalId}`);
-      return outcome;
-    }
-
-    // metadata_update
-    console.log(`  ~ ${parsed.url}`);
-    console.log(
-      `      UPDATED PROPOSAL — type: metadata_update, package: ${parsed.packageName}, app slug: "${outcome.appSlug}"`,
-    );
-    console.log(`        changed fields:`);
-    for (const field of Object.keys(outcome.row.proposed_fields)) {
-      console.log(`          ${field}: ${formatValue(outcome.row.previous_fields?.[field])} -> ${formatValue(outcome.row.proposed_fields[field])}`);
-    }
-    if (outcome.superseded) console.log(`        (superseded a previous pending proposal for this package)`);
-    console.log(`        proposal id: ${outcome.proposalId}`);
+    printProposeOutcome(parsed, outcome);
     return outcome;
   } catch (caught) {
     const reason = caught instanceof Error ? caught.message : String(caught);
@@ -473,6 +508,74 @@ async function processUrlForPropose(line) {
     console.log(`      FAILED — ${reason}`);
     return { status: "failed" };
   }
+}
+
+// --------------------------------------------------------------- watchlist
+
+/**
+ * --watchlist mode's entire CLI-side job: call runWatchlistPropose() (the
+ * real Supabase client, the real fetchMetadata, the real sleep) and print
+ * its report. Every decision about WHAT to propose, and every safety rule
+ * that governs it, already happened inside runWatchlistPropose() and the
+ * functions it calls — this function only formats what came back.
+ */
+async function runWatchlistCli() {
+  console.log(`\nGoogle Play metadata import (WATCHLIST PROPOSE) — reading public.play_watchlist\n`);
+
+  const report = await runWatchlistPropose({
+    supabase: writeClient,
+    fetchMetadata,
+    sleep,
+    fetchIntervalMs: PLAY_FETCH_INTERVAL_MS,
+  });
+
+  console.log(`  enabled entries:            ${report.enabled.length}`);
+  console.log(`  disabled entries (skipped): ${report.disabled.length}\n`);
+
+  if (report.enabled.length === 0) {
+    console.log("  0 enabled entries — nothing to check.\n");
+  }
+
+  for (const { row, result } of report.rows) {
+    if (result.kind === "invalid_url") {
+      console.log(`  ✗ ${row.play_url}`);
+      console.log(`      package: ${row.package_name} — invalid play_url: ${result.reason}`);
+      continue;
+    }
+    if (result.kind === "fetch_failed") {
+      console.log(`  ✗ ${row.play_url}`);
+      console.log(`      package: ${row.package_name}`);
+      console.log(`      fetch failed — ${result.reason}`);
+      continue;
+    }
+    if (result.kind === "store_failed") {
+      console.log(`  ✗ ${row.play_url}`);
+      console.log(`      package: ${row.package_name}`);
+      console.log(`      FAILED to record proposal — ${result.reason}`);
+      continue;
+    }
+    // "propose" — the fetch succeeded and proposeForPackage() ran; the URL
+    // was already confirmed valid by runWatchlistPropose() to reach this
+    // point, so re-parsing it here for display purposes cannot fail.
+    printProposeOutcome(parsePlayUrl(row.play_url), result.outcome);
+  }
+
+  console.log("\n  Watchlist propose summary");
+  console.log(`  -------------------------`);
+  console.log(`  enabled entries:            ${report.summary.enabledCount}`);
+  console.log(`  disabled entries (skipped): ${report.summary.disabledCount}`);
+  console.log(`  successful fetches:         ${report.summary.successfulFetches}`);
+  console.log(`  failed fetches:             ${report.summary.failedFetches}`);
+  console.log(`  new proposals:              ${report.summary.newProposals}`);
+  console.log(`  metadata-update proposals:  ${report.summary.metadataUpdateProposals}`);
+  console.log(`  unchanged:                  ${report.summary.unchanged}`);
+  console.log(`  F-Droid/ineligible:         ${report.summary.ineligible}`);
+  console.log(`  superseded:                 ${report.summary.superseded}`);
+  console.log(`  other failures (proposal write): ${report.summary.storeFailures}`);
+
+  console.log("\n  WATCHLIST PROPOSE MODE");
+  console.log("  Only play_import_proposals and play_watchlist health fields were written.");
+  console.log("  No apps, versions, storage, or publishing were changed.\n");
 }
 
 function printProposeSummary(summary) {
@@ -513,6 +616,11 @@ function printApplySummary(summary) {
 }
 
 async function main() {
+  if (WATCHLIST) {
+    await runWatchlistCli();
+    return;
+  }
+
   const modeLabel = APPLYING ? "APPLY" : PROPOSING ? "PROPOSE" : "DRY RUN";
   console.log(`\nGoogle Play metadata import (${modeLabel}) — reading ${INPUT_PATH}\n`);
 
