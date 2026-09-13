@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Logo from "@/components/Logo";
 import UserMenu from "@/components/UserMenu";
 import { useSession } from "@/components/SessionProvider";
 import ModeBadge from "@/components/ModeBadge";
 import AdminBar from "@/components/AdminBar";
+import HeaderSearch from "@/components/HeaderSearch";
 
 const NAV = [
   { href: "/#categories", label: "Categories" },
@@ -23,15 +23,7 @@ export default function SiteHeader() {
   const isAdmin = session.status === "admin";
   // "unknown" is a real state now: still checking, or a check that failed.
   const loading = session.status === "unknown" && !session.expired && !session.error;
-  const router = useRouter();
-  const [term, setTerm] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
-
-  function submit(event: React.FormEvent) {
-    event.preventDefault();
-    const q = term.trim();
-    router.push(q ? `/?search=${encodeURIComponent(q)}#catalogue` : "/#catalogue");
-  }
 
   return (
     <header className="sticky top-0 z-30 border-b border-base-800 bg-base-950/90 backdrop-blur">
@@ -44,25 +36,13 @@ export default function SiteHeader() {
 
         {/* Centre search — the header entry point; the catalogue below has the
             full filter set. */}
-        <form onSubmit={submit} role="search" className="hidden flex-1 justify-center md:flex">
-          <div className="relative w-full max-w-md">
-            <SearchGlyph />
-            <input
-              type="search"
-              value={term}
-              onChange={(e) => setTerm(e.target.value)}
-              placeholder="Search apps, packages, developers…"
-              aria-label="Search apps"
-              className="w-full rounded-full border border-base-700 bg-base-850 py-2 pr-20 pl-10 text-sm text-fg placeholder:text-fg-dim focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 focus:outline-none"
-            />
-            <button
-              type="submit"
-              className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded-full bg-brand-500 px-3 py-1 text-xs font-semibold text-base-950 transition-colors hover:bg-brand-400"
-            >
-              Search
-            </button>
-          </div>
-        </form>
+        <div className="hidden flex-1 justify-center md:flex">
+          <HeaderSearch
+            idPrefix="header-desktop"
+            placeholder="Search apps, packages, developers…"
+            className="w-full max-w-md"
+          />
+        </div>
 
         <nav className="ml-auto hidden items-center gap-6 text-sm text-fg-muted lg:flex">
           {NAV.map((item) => (
@@ -129,23 +109,7 @@ export default function SiteHeader() {
 
       {/* Mobile: search always reachable, nav behind the toggle. */}
       <div className="border-t border-base-800 px-4 py-2 md:hidden">
-        <form onSubmit={submit} role="search" className="relative">
-          <SearchGlyph />
-          <input
-            type="search"
-            value={term}
-            onChange={(e) => setTerm(e.target.value)}
-            placeholder="Search apps…"
-            aria-label="Search apps"
-            className="w-full rounded-full border border-base-700 bg-base-850 py-2 pr-20 pl-10 text-sm text-fg placeholder:text-fg-dim focus:border-brand-500 focus:outline-none"
-          />
-          <button
-            type="submit"
-            className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded-full bg-brand-500 px-3 py-1 text-xs font-semibold text-base-950 transition-colors hover:bg-brand-400"
-          >
-            Search
-          </button>
-        </form>
+        <HeaderSearch idPrefix="header-mobile" placeholder="Search apps…" />
       </div>
 
       {menuOpen && (
@@ -177,21 +141,5 @@ export default function SiteHeader() {
         </nav>
       )}
     </header>
-  );
-}
-
-function SearchGlyph() {
-  return (
-    <svg
-      className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-fg-dim"
-      width="15"
-      height="15"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
-      <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
-      <path d="m20 20-3.5-3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
   );
 }
