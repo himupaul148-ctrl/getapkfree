@@ -71,6 +71,18 @@ export default async function AdminAppsPage() {
     ),
   );
 
+  // What the scheduled enrichment job (scripts/enrich-github-apks.mjs) last
+  // decided, per app — a single bulk read (this table only ever has one
+  // row per GitHub-discovered app, never the whole catalogue) rather than
+  // one query per row. Shown regardless of the app's current version
+  // count: an app the job already enriched still displays its outcome
+  // alongside the normal version-management UI once it has a build.
+  const { data: enrichmentAttempts } = await supabase
+    .from("github_apk_enrichment_attempts")
+    .select("app_id, status, message, last_attempted_at")
+    .returns<{ app_id: string; status: string; message: string | null; last_attempted_at: string }[]>();
+  const enrichmentByAppId = new Map((enrichmentAttempts ?? []).map((a) => [a.app_id, a]));
+
   const apps: ManagedApp[] = (data ?? []).map((row) => {
     const versions: ManagedVersion[] = sortVersionsByCodeDesc(
       (row.versions ?? []).map((v) => ({
@@ -110,6 +122,12 @@ export default async function AdminAppsPage() {
       latestVersionName: newest(row)?.version_name ?? null,
       versions,
       githubSourceRepo: githubSourceByPackage.get(row.package_name) ?? null,
+      enrichmentAttempt: (() => {
+        const attempt = enrichmentByAppId.get(row.id);
+        return attempt
+          ? { status: attempt.status, message: attempt.message, lastAttemptedAt: attempt.last_attempted_at }
+          : null;
+      })(),
     };
   });
 

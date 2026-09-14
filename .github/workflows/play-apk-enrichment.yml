@@ -1,0 +1,98 @@
+name: Automatic GitHub APK Enrichment
+
+# Runs the completed GitHub APK enrichment pipeline (see the read-only
+# trigger-point audit this workflow implements):
+#
+#   selectEligibleApps()       (lib/apk/github-apk-enrichment-store.ts)
+#   -> importGithubApkForApp() (lib/apk/github-release-import.ts, UNCHANGED)
+#   -> recordAttempt()         (lib/apk/github-apk-enrichment-store.ts)
+#
+# Deliberately decoupled from POST /api/admin/play-proposals/[id]/approve —
+# it runs later, in a separate process, so a slow or failing GitHub/network
+# call can never turn a successful Play-proposal approval into a failed
+# one. See scripts/enrich-github-apks.mjs's own doc comment for the full
+# "why" — that script (and everything it calls) is completely unmodified
+# by this workflow file.
+#
+# This workflow NEVER publishes a version (every import is created with
+# published: false), NEVER approves/rejects/changes a Play proposal's
+# status, and NEVER writes anywhere except github_apk_enrichment_attempts,
+# Storage, and versions (via the existing, unmodified import pipeline).
+#
+# Required GitHub secrets (repository or environment — never printed,
+# echoed, or placed in a command-line argument; all three are passed only
+# as env vars to the one step below that needs them):
+#   SUPABASE_SERVICE_ROLE_KEY — github_apk_enrichment_attempts,
+#                               play_import_proposals, and
+#                               play_discovery_candidates all have no anon
+#                               RLS policy at all, so this unattended run
+#                               needs the service role key, exactly like
+#                               scripts/discover-play-apps.mjs's own
+#                               writes. This key exists ONLY inside this
+#                               GitHub Actions server environment — it is
+#                               never exposed to client code or any
+#                               browser/API route.
+#   NEXT_PUBLIC_SUPABASE_URL  — the project's Supabase URL. Not sensitive by
+#                               itself (it ships in every client bundle),
+#                               stored as a secret here purely for the same
+#                               hygiene reason .github/workflows/ci.yml and
+#                               play-discovery.yml already do.
+# GITHUB_TOKEN is NOT a secret to configure — it is the token GitHub
+# Actions already injects automatically into every workflow run
+# (https://docs.github.com/en/actions/security-guides/automatic-token-authentication),
+# used here only to raise the GitHub REST API's rate limit; enrichment
+# still works without it, just at a lower unauthenticated limit — exactly
+# the same role it plays in play-discovery.yml.
+on:
+  schedule:
+    # One run per day, at a fixed, conservative UTC time — staggered after
+    # play-watchlist.yml (03:00) and play-discovery.yml (03:30) so this
+    # never starts before a proposal either of those produces could
+    # plausibly have been approved.
+    - cron: "30 4 * * *"
+  workflow_dispatch: {}
+
+# Two overlapping enrichment runs are never useful — queue a second one
+# rather than cancelling the first, so a manually-triggered run is never
+# cut off by the next day's scheduled tick landing mid-run. Mirrors
+# play-discovery.yml's own concurrency policy exactly.
+concurrency:
+  group: play-apk-enrichment
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  enrich:
+    name: Automatic GitHub APK Enrichment
+    runs-on: ubuntu-latest
+    # Each APK download is capped at 100MB (lib/net/safe-fetch.ts's own
+    # DEFAULT_MAX_BYTES) with a 20s per-request timeout, but a full batch
+    # of several large, slow downloads run sequentially could still take a
+    # while — this is a hard ceiling on the whole job, well above a normal
+    # run's actual duration, so a genuinely stuck run cannot occupy the
+    # runner indefinitely.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Exactly: select eligible apps -> call the existing, unmodified
+      # importGithubApkForApp() once per app -> record the outcome. Never
+      # publishes, never touches play_import_proposals' status — see
+      # scripts/enrich-github-apks.mjs's own doc comment.
+      - name: Run automatic GitHub APK enrichment
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MAX_ENRICHMENTS: "10"
+        run: npm run enrich-github-apks

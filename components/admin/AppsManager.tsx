@@ -9,6 +9,7 @@ import SourceBadge from "@/components/SourceBadge";
 import ScanBadge from "@/components/ScanBadge";
 import EditMetadataModal from "@/components/admin/EditMetadataModal";
 import GithubApkImportAction from "@/components/admin/GithubApkImportAction";
+import GithubEnrichmentStatus, { type EnrichmentAttemptSummary } from "@/components/admin/GithubEnrichmentStatus";
 import { Modal } from "@/components/admin/Modal";
 import {
   canPublishVersion,
@@ -47,6 +48,12 @@ export type ManagedApp = {
    * Play app; never set for an F-Droid app or one with no discovery history.
    */
   githubSourceRepo: string | null;
+  /**
+   * The scheduled enrichment job's (scripts/enrich-github-apks.mjs) most
+   * recent decision for this app, or null if it has never run for it.
+   * Read-only, DB-only — see components/admin/GithubEnrichmentStatus.tsx.
+   */
+  enrichmentAttempt: EnrichmentAttemptSummary | null;
 };
 
 type ConfirmVersionAction = {
@@ -297,6 +304,7 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
                     </tr>
                     <tr>
                       <td colSpan={7} className="border-t border-base-800/60 bg-base-950/40 px-4 py-3">
+                        <GithubEnrichmentStatus attempt={app.enrichmentAttempt} />
                         <VersionList
                           app={app}
                           busyVersionId={busyVersionId}
@@ -353,6 +361,7 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
                   />
                 </div>
                 <div className="mt-3 border-t border-base-800 pt-3">
+                  <GithubEnrichmentStatus attempt={app.enrichmentAttempt} />
                   <VersionList
                     app={app}
                     busyVersionId={busyVersionId}

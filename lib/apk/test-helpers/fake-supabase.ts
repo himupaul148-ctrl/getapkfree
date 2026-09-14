@@ -7,14 +7,21 @@
  * lib/metadata/play-proposal-store.ts, (via the play_watchlist table)
  * lib/metadata/play-watchlist-store.ts, and (via the play_discovery_candidates
  * table) lib/metadata/play-discovery-store.ts, without touching a real
- * database or network.
+ * database or network. Also backs (via the github_apk_enrichment_attempts
+ * table) lib/apk/github-apk-enrichment-store.ts.
  *
  * Not a test file itself (no `.test.ts` suffix), so `npm test`'s
  * `lib/**\/*.test.ts` glob does not try to run it directly.
  */
 
 type Row = Record<string, unknown>;
-type TableName = "apps" | "versions" | "play_import_proposals" | "play_watchlist" | "play_discovery_candidates";
+type TableName =
+  | "apps"
+  | "versions"
+  | "play_import_proposals"
+  | "play_watchlist"
+  | "play_discovery_candidates"
+  | "github_apk_enrichment_attempts";
 
 function randomId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
@@ -26,6 +33,7 @@ export class FakeSupabase {
   play_import_proposals: Row[] = [];
   play_watchlist: Row[] = [];
   play_discovery_candidates: Row[] = [];
+  github_apk_enrichment_attempts: Row[] = [];
 
   storageUploads: { path: string; bytes: unknown }[] = [];
   storageRemovedPaths: string[] = [];
@@ -286,6 +294,24 @@ class FakeQueryBuilder {
           checked_at: null,
           candidate_name: null,
           score: null,
+          ...this.payload,
+        };
+        this.rows().push(row);
+        return { data: row as T, error: null };
+      }
+      if (this.table === "github_apk_enrichment_attempts") {
+        // Mirrors github_apk_enrichment_attempts_app_id_key: UNIQUE(app_id)
+        // — at most one row per app, exactly matching
+        // recordAttempt()'s own insert-then-recover-on-conflict logic.
+        const clash = this.rows().find((r) => r.app_id === this.payload!.app_id);
+        if (clash) return { data: null, error: uniqueViolation("github_apk_enrichment_attempts_app_id_key") };
+        const row: Row = {
+          id: randomId("enrichment"),
+          message: null,
+          owner_repo: null,
+          version_id: null,
+          attempt_count: 1,
+          created_at: new Date().toISOString(),
           ...this.payload,
         };
         this.rows().push(row);

@@ -54,6 +54,29 @@ export function trendingScore(downloadCount: number, lastUpdated: string | null)
   return downloadCount / Math.max(daysSince(lastUpdated), 1) ** 0.5;
 }
 
+/**
+ * Minute/hour-granular relative time — "20m ago", "2h ago", "1d ago", then
+ * falls back to formatRelative()'s own day/month/year wording beyond a
+ * week. A separate function from formatRelative() (never edited by this
+ * addition) because that one is already used across several public-facing
+ * pages with day-level granularity as its deliberate floor; this is only
+ * for the admin GitHub APK enrichment status line, where "20 minutes ago"
+ * vs "today" is the actually useful distinction.
+ */
+export function formatShortRelative(iso: string | null): string {
+  if (!iso) return "—";
+  const ms = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return "just now";
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return formatRelative(iso);
+}
+
 /** "9.0" -> 9. Used to compare an app's minimum against a chosen Android level. */
 export function androidLevel(version: string | null): number {
   if (!version) return 0;

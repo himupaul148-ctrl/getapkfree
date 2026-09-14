@@ -10,6 +10,7 @@
     "import-fdroid": "node --env-file=.env.local scripts/import-fdroid.mjs",
     "import-play-metadata": "node --env-file=.env.local scripts/import-play-metadata.mjs",
     "discover-play-apps": "node --env-file=.env.local scripts/discover-play-apps.mjs",
+    "enrich-github-apks": "node scripts/enrich-github-apks.mjs",
     "backfill-media": "node --env-file=.env.local scripts/backfill-media.mjs",
     "deploy-workflow": "bash scripts/deploy-workflow.sh",
     "test": "node --test lib/**/*.test.ts"
