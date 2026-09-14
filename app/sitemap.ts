@@ -1,8 +1,25 @@
 import type { MetadataRoute } from "next";
 import { getCatalogue } from "@/lib/catalogue";
-import { getPublishedPosts } from "@/lib/blog";
+import { getPublishedPostsForSitemap, type SitemapBlogPost } from "@/lib/blog";
 import { absolute } from "@/lib/seo";
 import { CATEGORIES } from "@/lib/types";
+
+/**
+ * A failed blog query must never take the whole sitemap down — the app
+ * pages are the bulk of the sitemap's SEO value and have nothing to do with
+ * blog_posts. getPublishedPostsForSitemap() throws on a genuine Supabase
+ * error (see lib/blog.ts) rather than silently returning [], so that error
+ * is caught and logged right here instead of disappearing the way it used
+ * to when the old code path swallowed it before this fix.
+ */
+async function loadBlogPostsForSitemap(): Promise<SitemapBlogPost[]> {
+  try {
+    return await getPublishedPostsForSitemap();
+  } catch (caught) {
+    console.error("sitemap: failed to load blog posts", caught);
+    return [];
+  }
+}
 
 /*
  * Rendered per request rather than cached as a response.
@@ -17,10 +34,14 @@ import { CATEGORIES } from "@/lib/types";
  * dropped the response entry.
  *
  * Dropping the response cache removes the layer that went stale. The cost is
- * one render per request, which is nothing: the two queries underneath are
- * still `unstable_cache`d for an hour and tagged, so Supabase is hit no more
+ * one render per request, which is nothing: getCatalogue() is still
+ * `unstable_cache`d for an hour and tagged, so the apps query is hit no more
  * often than before, and a sitemap is fetched by crawlers, not by visitors.
- * The upshot is that the sitemap now always agrees with the catalogue rather
+ * The blog-posts query (see loadBlogPostsForSitemap above) deliberately
+ * skips unstable_cache entirely for the same reason — an unstable_cache
+ * entry that never gets read fresh again is exactly how the blog side of
+ * this sitemap went stale in the first place. The upshot is that the
+ * sitemap now always agrees with both the catalogue and blog_posts, rather
  * than depending on an invalidation call that demonstrably did not fire.
  */
 export const dynamic = "force-dynamic";
@@ -35,7 +56,7 @@ export const dynamic = "force-dynamic";
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [{ apps }, posts] = await Promise.all([
     getCatalogue(),
-    getPublishedPosts(),
+    loadBlogPostsForSitemap(),
   ]);
 
   const staticPages: MetadataRoute.Sitemap = [

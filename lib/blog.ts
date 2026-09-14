@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { supabase } from "@/lib/supabase/public";
+import { resolveQueryResult } from "@/lib/supabase/query-result";
 import { APP_SUMMARY_SELECT, toSummary } from "@/lib/catalogue";
 import type { AppSummary, AppWithVersions } from "@/lib/types";
 import { excerpt, readingTime } from "@/lib/markdown";
@@ -84,14 +85,16 @@ async function fetchPublished(): Promise<BlogSummary[]> {
   // RLS already hides drafts from anonymous readers, but an admin browsing the
   // public blog shares this code path and would otherwise see their own
   // drafts listed as if they were live.
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("blog_posts")
     .select(`${LIST_COLUMNS}, content`)
     .eq("published", true)
     .order("created_at", { ascending: false })
     .returns<BlogPost[]>();
 
-  return (data ?? [])
+  const rows = resolveQueryResult(data, error, "fetchPublished: Supabase query failed") ?? [];
+
+  return rows
     .filter((post) => !RETIRED_SLUGS.includes(post.slug))
     .map(({ content, ...rest }) => ({
     ...rest,
@@ -112,6 +115,31 @@ export const getPublishedPosts = unstable_cache(
   ["blog-posts"],
   { revalidate: 3600, tags: ["blog"] },
 );
+
+export type SitemapBlogPost = { slug: string; updated_at: string };
+
+/**
+ * Direct, uncached read for app/sitemap.ts specifically. Deliberately does
+ * NOT go through getPublishedPosts()/unstable_cache above: the sitemap route
+ * is already `export const dynamic = "force-dynamic"` (re-executes fully on
+ * every request), so a stale unstable_cache entry can only ever make the
+ * sitemap wrong, never save it a real Supabase round trip. Selects just the
+ * two columns a sitemap entry needs, not the full post (no content, no
+ * excerpt/read-time derivation).
+ */
+export async function getPublishedPostsForSitemap(): Promise<SitemapBlogPost[]> {
+  const { data, error } = await supabase
+    .from("blog_posts")
+    .select("slug, updated_at")
+    .eq("published", true)
+    .order("created_at", { ascending: false })
+    .returns<SitemapBlogPost[]>();
+
+  const rows =
+    resolveQueryResult(data, error, "getPublishedPostsForSitemap: Supabase query failed") ?? [];
+
+  return rows.filter((post) => !RETIRED_SLUGS.includes(post.slug));
+}
 
 export async function getPostBySlug(slug: string): Promise<BlogPost | null> {
   const { data } = await supabase
