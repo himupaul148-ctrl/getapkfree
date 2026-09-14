@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatCount, formatDate } from "@/lib/format";
 import SourceBadge from "@/components/SourceBadge";
 import ScanBadge from "@/components/ScanBadge";
 import EditMetadataModal from "@/components/admin/EditMetadataModal";
+import GithubApkImportAction from "@/components/admin/GithubApkImportAction";
+import { Modal } from "@/components/admin/Modal";
 import {
   canPublishVersion,
   setVersionPublished,
@@ -38,6 +40,13 @@ export type ManagedApp = {
   latestVersionName: string | null;
   /** Every build, newest first — publish/unpublish now targets one of these, never the app as a whole. */
   versions: ManagedVersion[];
+  /**
+   * "owner/repo" this app's Play-discovery approval traces back to, or null
+   * — resolved read-only, DB-only (lib/apk/app-github-source.ts), with no
+   * GitHub API call at page-load. Only ever non-null for a GitHub-discovered
+   * Play app; never set for an F-Droid app or one with no discovery history.
+   */
+  githubSourceRepo: string | null;
 };
 
 type ConfirmVersionAction = {
@@ -278,9 +287,11 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
                       </td>
                       <td className="px-4 py-3">
                         <Actions
+                          app={app}
                           busy={busyId === app.id}
                           onEdit={() => setEditing(app)}
                           onDelete={() => setConfirmDelete(app)}
+                          onImported={() => router.refresh()}
                         />
                       </td>
                     </tr>
@@ -334,9 +345,11 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
                 </dl>
                 <div className="mt-3">
                   <Actions
+                    app={app}
                     busy={busyId === app.id}
                     onEdit={() => setEditing(app)}
                     onDelete={() => setConfirmDelete(app)}
+                    onImported={() => router.refresh()}
                   />
                 </div>
                 <div className="mt-3 border-t border-base-800 pt-3">
@@ -531,16 +544,21 @@ function VersionList({
 }
 
 function Actions({
+  app,
   busy,
   onEdit,
   onDelete,
+  onImported,
 }: {
+  app: ManagedApp;
   busy: boolean;
   onEdit: () => void;
   onDelete: () => void;
+  onImported: () => void;
 }) {
   return (
     <div className="flex flex-wrap justify-end gap-2">
+      <GithubApkImportAction app={app} onImported={onImported} />
       <button
         type="button"
         onClick={onEdit}
@@ -556,59 +574,6 @@ function Actions({
       >
         Delete
       </button>
-    </div>
-  );
-}
-
-function Modal({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", onKey);
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = previous;
-    };
-  }, [onClose]);
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center"
-      onClick={onClose}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        onClick={(e) => e.stopPropagation()}
-        className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-base-700 bg-base-900 p-6"
-      >
-        <div className="flex items-start justify-between gap-4">
-          <h3 className="text-lg font-bold">{title}</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="rounded-lg border border-base-700 p-2 text-fg-muted hover:text-fg"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </button>
-        </div>
-        <div className="mt-5">{children}</div>
-      </div>
     </div>
   );
 }

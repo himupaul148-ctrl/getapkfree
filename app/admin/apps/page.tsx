@@ -1,6 +1,7 @@
 import AppsManager, { type ManagedApp } from "@/components/admin/AppsManager";
 import { createClient } from "@/lib/supabase/server";
 import { sortVersionsByCodeDesc, type ManagedVersion } from "@/lib/admin/version-publish";
+import { resolveAppGithubSource } from "@/lib/apk/app-github-source";
 import type { SourceType } from "@/lib/sources";
 
 export const dynamic = "force-dynamic";
@@ -57,6 +58,19 @@ export default async function AdminAppsPage() {
     .order("created_at", { ascending: false })
     .returns<Row[]>();
 
+  // The GitHub-source lookup is read-only and DB-only (no GitHub API call —
+  // see lib/apk/app-github-source.ts), but there is no point running it for
+  // an app that already has a build: GithubApkImportAction only ever shows
+  // its button for a zero-version app anyway, so only those are resolved.
+  const zeroVersionRows = (data ?? []).filter((row) => (row.versions ?? []).length === 0);
+  const githubSourceByPackage = new Map<string, string | null>(
+    await Promise.all(
+      zeroVersionRows.map(
+        async (row) => [row.package_name, await resolveAppGithubSource(supabase, row.package_name)] as const,
+      ),
+    ),
+  );
+
   const apps: ManagedApp[] = (data ?? []).map((row) => {
     const versions: ManagedVersion[] = sortVersionsByCodeDesc(
       (row.versions ?? []).map((v) => ({
@@ -95,6 +109,7 @@ export default async function AdminAppsPage() {
       latestVersionId: newest(row)?.id ?? null,
       latestVersionName: newest(row)?.version_name ?? null,
       versions,
+      githubSourceRepo: githubSourceByPackage.get(row.package_name) ?? null,
     };
   });
 

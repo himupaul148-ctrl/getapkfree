@@ -410,6 +410,90 @@ export async function fetchLatestReleaseDate(
   return { ok: true, value: hasDatedRelease };
 }
 
+const APK_CONTENT_TYPE = "application/vnd.android.package-archive";
+
+/** One asset attached to a GitHub Release. Only the fields the APK-enrichment importer actually needs. */
+export type GithubReleaseAsset = {
+  name: string;
+  browserDownloadUrl: string;
+  contentType: string | null;
+  size: number;
+};
+
+/** null means the repository has no release at all — a normal, non-error outcome, never treated as a failure. */
+export type GithubLatestRelease = { tagName: string; assets: GithubReleaseAsset[] } | null;
+
+/**
+ * An asset counts as an APK if GitHub recorded the correct content type, OR
+ * (fallback, since some release pipelines upload with a generic
+ * application/octet-stream content type) its filename ends in ".apk".
+ * Deliberately narrow: an arbitrary ZIP or source-archive asset must never
+ * be treated as an APK just because it sits in the same release.
+ */
+export function isApkAsset(asset: Pick<GithubReleaseAsset, "name" | "contentType">): boolean {
+  if (asset.contentType === APK_CONTENT_TYPE) return true;
+  return asset.name.toLowerCase().endsWith(".apk");
+}
+
+/** Filters a release's assets down to the ones that look like an APK. Order is preserved from the release response. */
+export function findApkAssets(assets: GithubReleaseAsset[]): GithubReleaseAsset[] {
+  return assets.filter(isApkAsset);
+}
+
+/**
+ * GET /repos/{owner}/{repo}/releases/latest — the one call the GitHub APK
+ * enrichment importer (lib/apk/github-release-import.ts) needs to discover
+ * a real, first-party release APK. Deliberately a new, separate function
+ * rather than a change to fetchLatestReleaseDate() above: that function's
+ * contract (a boolean, used only for the discovery hard-filter) already has
+ * a caller and a passing test suite, and callers that only need "does a
+ * dated release exist" have no reason to pay for parsing an assets array
+ * they'll never look at.
+ *
+ * A repository with no releases at all makes /releases/latest itself 404 —
+ * that is reported as `{ ok: true, value: null }`, a normal "no release"
+ * result, never a DiscoveryError. Every other non-2xx status, a malformed
+ * body, or a network failure still goes through the same DiscoveryError
+ * channel as every other function in this module.
+ */
+export async function fetchLatestReleaseAssets(
+  fetchFn: GithubFetchFn,
+  ownerRepo: string,
+  headers?: Record<string, string>,
+): Promise<DiscoveryResult<GithubLatestRelease>> {
+  const url = `https://api.github.com/repos/${ownerRepo}/releases/latest`;
+  const result = await requestJson(fetchFn, url, headers);
+  if (!result.ok) {
+    if (result.error.kind === "http_error" && result.error.status === 404) {
+      return { ok: true, value: null };
+    }
+    return result;
+  }
+
+  const body = result.value;
+  if (typeof body !== "object" || body === null) {
+    return { ok: false, error: { kind: "malformed_response", message: "release response is not an object" } };
+  }
+  const record = body as Record<string, unknown>;
+  const rawAssets = record.assets;
+  if (!Array.isArray(rawAssets)) {
+    return { ok: false, error: { kind: "malformed_response", message: "release response has no `assets` array" } };
+  }
+
+  const assets: GithubReleaseAsset[] = rawAssets
+    .map((raw): GithubReleaseAsset | null => {
+      if (typeof raw !== "object" || raw === null) return null;
+      const r = raw as Record<string, unknown>;
+      const name = str(r.name);
+      const downloadUrl = str(r.browser_download_url);
+      if (!name || !downloadUrl) return null;
+      return { name, browserDownloadUrl: downloadUrl, contentType: str(r.content_type), size: num(r.size) };
+    })
+    .filter((a): a is GithubReleaseAsset => a !== null);
+
+  return { ok: true, value: { tagName: str(record.tag_name) ?? "", assets } };
+}
+
 /** GET /repos/{owner}/{repo}/readme — base64-decoded to plain text, truncated. Kept only as raw text for a later, separate Play-URL-extraction step; never parsed here. */
 export async function fetchReadmeExcerpt(
   fetchFn: GithubFetchFn,
