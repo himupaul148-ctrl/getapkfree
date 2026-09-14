@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe as group, test } from "node:test";
+import { STATUS_LABELS } from "./enrichment-status-labels.ts";
 
 /**
  * Static, source-level assertions against
@@ -42,7 +43,12 @@ group("GithubEnrichmentStatus — shows the status label and a relative timestam
     assert.match(statusSrc, /import \{ formatShortRelative \} from "@\/lib\/format";/);
   });
 
-  test("maps every enrichment status the store can record to a human label", () => {
+  test("imports the shared label map rather than defining its own copy", () => {
+    assert.match(statusSrc, /import \{ STATUS_LABELS \} from "@\/lib\/apk\/enrichment-status-labels";/);
+    assert.doesNotMatch(statusSrc, /no_github_source:\s*"/, "the label map itself must not live inline in this .tsx file");
+  });
+
+  test("the shared map covers every enrichment status the store can record", () => {
     for (const status of [
       "no_github_source",
       "github_repo_not_found",
@@ -54,16 +60,16 @@ group("GithubEnrichmentStatus — shows the status label and a relative timestam
       "already_has_version",
       "imported_unpublished",
     ]) {
-      assert.match(statusSrc, new RegExp(`${status}:\\s*"`));
+      assert.ok(STATUS_LABELS[status as keyof typeof STATUS_LABELS], `missing a label for ${status}`);
     }
   });
 
   test("the imported_unpublished label matches the spec's own wording", () => {
-    assert.match(statusSrc, /imported_unpublished:\s*"APK imported, awaiting publication"/);
+    assert.equal(STATUS_LABELS.imported_unpublished, "APK imported, awaiting publication");
   });
 
   test("the no_apk_asset label matches the spec's own wording", () => {
-    assert.match(statusSrc, /no_apk_asset:\s*"No APK available"/);
+    assert.equal(STATUS_LABELS.no_apk_asset, "No APK available");
   });
 });
 

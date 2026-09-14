@@ -100,6 +100,30 @@ export async function getAttempt(
   return data;
 }
 
+/**
+ * The current attempt row for every app in `appIds` that has one, batched
+ * into a single query — the bulk counterpart to getAttempt() above, for a
+ * caller that already knows a small, fixed set of app ids (e.g. the admin
+ * Play Proposals page rendering one card per approved app) and must never
+ * turn that into one query per card. An empty `appIds` short-circuits to
+ * an empty Map without touching the database at all.
+ */
+export async function getAttemptsByAppIds(
+  supabase: SupabaseClient,
+  appIds: string[],
+): Promise<Map<string, EnrichmentAttemptRow>> {
+  if (appIds.length === 0) return new Map();
+
+  const { data, error } = await supabase
+    .from("github_apk_enrichment_attempts")
+    .select(ENRICHMENT_ATTEMPT_SELECT)
+    .in("app_id", appIds)
+    .returns<EnrichmentAttemptRow[]>();
+  if (error) throw error;
+
+  return new Map((data ?? []).map((row) => [row.app_id, row]));
+}
+
 export type RecordAttemptInput = {
   appId: string;
   status: EnrichmentStatus;

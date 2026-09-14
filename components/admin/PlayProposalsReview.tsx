@@ -11,6 +11,9 @@ import {
   formatFieldValue,
   type PostActionResult,
 } from "@/lib/metadata/play-proposals-ui";
+import ApprovedProposalEnrichmentStatus, {
+  type ApprovedProposalEnrichmentCardData,
+} from "@/components/admin/ApprovedProposalEnrichmentStatus";
 
 export type ManagedProposal = {
   id: string;
@@ -43,8 +46,17 @@ type ConfirmAction = { proposal: ManagedProposal; action: "approve" | "reject" }
  */
 export default function PlayProposalsReview({
   proposals: initialProposals,
+  approvedCards = [],
 }: {
   proposals: ManagedProposal[];
+  /**
+   * Read-only "Recently approved (GitHub-discovered)" cards — entirely
+   * separate from `proposals` above. Never touched by removeProposal(),
+   * the pending count/filter, or any Approve/Reject action; this section
+   * has none of those. Defaults to an empty array so existing callers
+   * (and any test that doesn't care about it) don't need to pass it.
+   */
+  approvedCards?: ApprovedProposalEnrichmentCardData[];
 }) {
   const [proposals, setProposals] = useState(initialProposals);
   const [filter, setFilter] = useState<"all" | "new_app" | "metadata_update">("all");
@@ -183,6 +195,19 @@ export default function PlayProposalsReview({
             </li>
           ))}
         </ul>
+      )}
+
+      {approvedCards.length > 0 && (
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold text-fg-muted">Recently approved (GitHub-discovered)</h3>
+          <ul className="space-y-4">
+            {approvedCards.map((card) => (
+              <li key={card.proposalId}>
+                <ApprovedProposalEnrichmentStatus card={card} />
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {confirmAction && (

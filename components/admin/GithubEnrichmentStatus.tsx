@@ -1,4 +1,6 @@
 import { formatShortRelative } from "@/lib/format";
+import { STATUS_LABELS } from "@/lib/apk/enrichment-status-labels";
+import type { EnrichmentStatus } from "@/lib/apk/github-apk-enrichment-store";
 
 /**
  * The read-only counterpart to GithubApkImportAction.tsx (untouched by
@@ -21,22 +23,10 @@ export type EnrichmentAttemptSummary = {
   lastAttemptedAt: string;
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  no_github_source: "No GitHub source linked",
-  github_repo_not_found: "GitHub repository not found",
-  no_release: "No GitHub release yet",
-  no_apk_asset: "No APK available",
-  multiple_apk_assets: "Multiple APK assets — needs review",
-  package_mismatch: "Package mismatch",
-  import_failed: "Import failed",
-  already_has_version: "Already has a version",
-  imported_unpublished: "APK imported, awaiting publication",
-};
-
 export default function GithubEnrichmentStatus({ attempt }: { attempt: EnrichmentAttemptSummary | null }) {
   if (!attempt) return null;
 
-  const label = STATUS_LABELS[attempt.status] ?? attempt.status;
+  const label = STATUS_LABELS[attempt.status as EnrichmentStatus] ?? attempt.status;
   const isSuccess = attempt.status === "imported_unpublished";
   const needsAttention = attempt.status === "package_mismatch" || attempt.status === "multiple_apk_assets";
 

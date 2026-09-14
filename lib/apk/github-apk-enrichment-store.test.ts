@@ -3,6 +3,7 @@ import { describe as group, test } from "node:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   getAttempt,
+  getAttemptsByAppIds,
   recordAttempt,
   selectEligibleApps,
   DEFAULT_RETRY_COOLDOWN_HOURS,
@@ -59,6 +60,111 @@ group("getAttempt", () => {
     const attempt = await getAttempt(client(fake), "app-1");
     assert.equal(attempt?.status, "no_apk_asset");
     assert.equal(attempt?.owner_repo, "someone/repo");
+  });
+});
+
+group("getAttemptsByAppIds — the batched counterpart to getAttempt", () => {
+  test("an empty appIds list returns an empty Map without touching the database", async () => {
+    const fake = new FakeSupabase();
+    // Force any query to fail loudly if one is somehow made — proves the
+    // empty-input short-circuit never reaches .from() at all.
+    fake.forceError = { table: "github_apk_enrichment_attempts", op: "select", error: { message: "must not be called", code: "XXXXX" } };
+
+    const result = await getAttemptsByAppIds(client(fake), []);
+
+    assert.ok(result instanceof Map);
+    assert.equal(result.size, 0);
+  });
+
+  test("returns an empty Map when none of the given app ids have an attempt row", async () => {
+    const fake = new FakeSupabase();
+    fake.github_apk_enrichment_attempts.push({
+      id: "e-1",
+      app_id: "app-unrelated",
+      status: "no_apk_asset",
+      message: null,
+      owner_repo: null,
+      version_id: null,
+      attempt_count: 1,
+      last_attempted_at: "2026-09-01T00:00:00Z",
+      created_at: "2026-09-01T00:00:00Z",
+    });
+
+    const result = await getAttemptsByAppIds(client(fake), ["app-1", "app-2"]);
+    assert.equal(result.size, 0);
+  });
+
+  test("one matching app id returns a Map with exactly that entry", async () => {
+    const fake = new FakeSupabase();
+    fake.github_apk_enrichment_attempts.push({
+      id: "e-1",
+      app_id: "app-1",
+      status: "already_has_version",
+      message: null,
+      owner_repo: "leonlatsch/Photok",
+      version_id: null,
+      attempt_count: 1,
+      last_attempted_at: "2026-09-14T00:00:00Z",
+      created_at: "2026-09-14T00:00:00Z",
+    });
+
+    const result = await getAttemptsByAppIds(client(fake), ["app-1"]);
+    assert.equal(result.size, 1);
+    assert.equal(result.get("app-1")?.status, "already_has_version");
+  });
+
+  test("multiple matching app ids all come back in one call — never one query per id", async () => {
+    const fake = new FakeSupabase();
+    fake.github_apk_enrichment_attempts.push(
+      {
+        id: "e-1",
+        app_id: "app-1",
+        status: "already_has_version",
+        message: null,
+        owner_repo: null,
+        version_id: null,
+        attempt_count: 1,
+        last_attempted_at: "2026-09-14T00:00:00Z",
+        created_at: "2026-09-14T00:00:00Z",
+      },
+      {
+        id: "e-2",
+        app_id: "app-2",
+        status: "no_apk_asset",
+        message: null,
+        owner_repo: null,
+        version_id: null,
+        attempt_count: 1,
+        last_attempted_at: "2026-09-14T00:00:00Z",
+        created_at: "2026-09-14T00:00:00Z",
+      },
+    );
+
+    const result = await getAttemptsByAppIds(client(fake), ["app-1", "app-2"]);
+    assert.equal(result.size, 2);
+    assert.equal(result.get("app-1")?.status, "already_has_version");
+    assert.equal(result.get("app-2")?.status, "no_apk_asset");
+  });
+
+  test("a partial match returns only the ids that actually have a row — no entry, not an error, for the rest", async () => {
+    const fake = new FakeSupabase();
+    fake.github_apk_enrichment_attempts.push({
+      id: "e-1",
+      app_id: "app-1",
+      status: "imported_unpublished",
+      message: null,
+      owner_repo: null,
+      version_id: "v-1",
+      attempt_count: 1,
+      last_attempted_at: "2026-09-14T00:00:00Z",
+      created_at: "2026-09-14T00:00:00Z",
+    });
+
+    const result = await getAttemptsByAppIds(client(fake), ["app-1", "app-2", "app-3"]);
+    assert.equal(result.size, 1);
+    assert.ok(result.has("app-1"));
+    assert.equal(result.has("app-2"), false);
+    assert.equal(result.has("app-3"), false);
   });
 });
 

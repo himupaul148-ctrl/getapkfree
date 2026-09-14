@@ -103,6 +103,7 @@ function uniqueViolation(constraint: string): PgError {
 
 class FakeQueryBuilder {
   private filters: [string, unknown][] = [];
+  private inFilters: [string, unknown[]][] = [];
   private op: "select" | "insert" | "update" | "delete" = "select";
   private payload: Row | null = null;
   private orderBy: { field: string; ascending: boolean } | null = null;
@@ -128,6 +129,15 @@ class FakeQueryBuilder {
   select() {
     this.wantsSelectedRows = true;
     return this;
+  }
+
+  // Real supabase-js's .returns<T>() is a type-only generic cast — a no-op
+  // at runtime that just returns `this` for further chaining. Needed here
+  // purely so a caller chaining .returns<T[]>() after .in()/.eq() (as
+  // lib/apk/github-apk-enrichment-store.ts's getAttemptsByAppIds() does)
+  // doesn't hit a missing-method TypeError against this fake.
+  returns<T>() {
+    return this as unknown as FakeQueryBuilder & { __returns?: T };
   }
 
   insert(payload: Row) {
@@ -163,6 +173,14 @@ class FakeQueryBuilder {
     return this;
   }
 
+  // Used by callers batching a lookup across a known, fixed set of ids
+  // (e.g. lib/apk/github-apk-enrichment-store.ts's getAttemptsByAppIds())
+  // instead of one query per id.
+  in(field: string, values: unknown[]) {
+    this.inFilters.push([field, values]);
+    return this;
+  }
+
   // Used by lib/metadata/play-proposal-store.ts's findAnyProposalForPackage()
   // to get the most recent matching row. Actually sorts/limits, rather than
   // a no-op, so a test seeding multiple rows for the same package can rely
@@ -182,7 +200,11 @@ class FakeQueryBuilder {
   }
 
   private matching(): Row[] {
-    let result = this.rows().filter((row) => this.filters.every(([f, v]) => row[f] === v));
+    let result = this.rows().filter(
+      (row) =>
+        this.filters.every(([f, v]) => row[f] === v) &&
+        this.inFilters.every(([f, values]) => values.includes(row[f])),
+    );
     if (this.orderBy) {
       const { field, ascending } = this.orderBy;
       result = [...result].sort((a, b) => {

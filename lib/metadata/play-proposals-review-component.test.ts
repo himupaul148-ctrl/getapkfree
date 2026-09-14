@@ -159,3 +159,63 @@ group("app/admin/layout.tsx — Play Proposals tab", () => {
     assert.match(layoutSrc, /if \(!\(await isAdmin\(\)\)\) redirect\("\/"\);/);
   });
 });
+
+/* ============================================================
+ * "Recently approved (GitHub-discovered)" section — added on top of the
+ * existing pending queue above. Every assertion in the groups above this
+ * point is untouched by this addition; these new groups prove the new
+ * section is purely additive and never interferes with the existing
+ * pending-queue behavior already covered above.
+ * ============================================================ */
+
+group("PlayProposalsReview — the approved section is separate from, and never mixed into, the pending queue", () => {
+  test("accepts approvedCards as its own prop, defaulting to an empty array", () => {
+    assert.match(componentSrc, /approvedCards\s*=\s*\[\]/);
+  });
+
+  test("the approved section is gated on approvedCards.length, hidden entirely when empty (never an empty-state message)", () => {
+    assert.match(componentSrc, /\{approvedCards\.length > 0 && \(/);
+  });
+
+  test("renders the required section heading", () => {
+    assert.match(componentSrc, /Recently approved \(GitHub-discovered\)/);
+  });
+
+  test("renders one ApprovedProposalEnrichmentStatus per card, imported from its own file", () => {
+    assert.match(
+      componentSrc,
+      /import ApprovedProposalEnrichmentStatus, \{\s*type ApprovedProposalEnrichmentCardData,?\s*\} from "@\/components\/admin\/ApprovedProposalEnrichmentStatus";/,
+    );
+    assert.match(componentSrc, /approvedCards\.map\(\(card\) => /);
+    assert.match(componentSrc, /<ApprovedProposalEnrichmentStatus card=\{card\} \/>/);
+  });
+
+  test("approvedCards never appears inside filterProposals(), the pending count, or the type filter — it is not part of that state", () => {
+    assert.doesNotMatch(componentSrc, /filterProposals\(approvedCards/);
+    assert.doesNotMatch(componentSrc, /newAppCount.*approvedCards/);
+  });
+
+  test("removeProposal is never called with anything from an approved card", () => {
+    const removeProposalCalls = [...componentSrc.matchAll(/removeProposal\(([^)]*)\)/g)].map((m) => m[1]);
+    for (const arg of removeProposalCalls) assert.doesNotMatch(arg, /card/);
+  });
+});
+
+group("PlayProposalsReview — no Approve/Reject controls anywhere near the approved section", () => {
+  test("the approved section's own JSX block contains no onApprove/onReject/ActionButtons/ConfirmModal reference", () => {
+    const start = componentSrc.indexOf("{approvedCards.length > 0 && (");
+    assert.ok(start > -1);
+    const afterStart = componentSrc.slice(start);
+    // The block ends at the next top-level `{confirmAction &&` (the existing,
+    // separate modal for the PENDING queue's own actions) — not part of the
+    // approved section itself.
+    const end = afterStart.indexOf("{confirmAction &&");
+    assert.ok(end > -1);
+    const approvedBlock = afterStart.slice(0, end);
+
+    assert.doesNotMatch(approvedBlock, /onApprove/);
+    assert.doesNotMatch(approvedBlock, /onReject/);
+    assert.doesNotMatch(approvedBlock, /ActionButtons/);
+    assert.doesNotMatch(approvedBlock, /setConfirmAction/);
+  });
+});

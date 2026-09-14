@@ -1,7 +1,10 @@
 import PlayProposalsReview, {
   type ManagedProposal,
 } from "@/components/admin/PlayProposalsReview";
+import type { ApprovedProposalEnrichmentCardData } from "@/components/admin/ApprovedProposalEnrichmentStatus";
 import { createClient } from "@/lib/supabase/server";
+import { getAttemptsByAppIds } from "@/lib/apk/github-apk-enrichment-store";
+import { describeEnrichmentStatus } from "@/lib/metadata/play-proposals-enrichment-ui";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +25,124 @@ type AppRow = {
   name: string;
   manual_fields: string[] | null;
 };
+
+/** Bounded, forward-looking cap — today there are only a handful of these in production, but this keeps the query from ever becoming unbounded. */
+const MAX_RECENTLY_APPROVED = 50;
+
+type AppliedNewAppProposalRow = {
+  id: string;
+  package_name: string;
+  play_url: string;
+  proposed_fields: Record<string, unknown>;
+  applied_at: string | null;
+};
+
+type ApprovedAppRow = {
+  id: string;
+  slug: string;
+  name: string;
+  icon_url: string | null;
+  package_name: string;
+};
+
+/**
+ * Loads the "Recently approved (GitHub-discovered)" section's data —
+ * entirely separate from, and never mutating, the existing pending-queue
+ * query above. Every step here is a single batched query keyed by the
+ * small, bounded set of applied new_app proposals; nothing here issues a
+ * query per proposal/app/card. Mirrors app/admin/apps/page.tsx's own
+ * proven batched-query shape for resolving GitHub source/enrichment data
+ * for a list of apps.
+ *
+ * A card only ever appears for a proposal that is proposal_type='new_app',
+ * status='applied', has a matching apps row (resolved by package_name —
+ * play_import_proposals.app_id is never populated for a new_app proposal,
+ * even after approval, so package_name is the only real join key here,
+ * exactly as lib/apk/app-github-source.ts's resolveAppGithubSource()
+ * already relies on elsewhere), AND has a matching
+ * play_discovery_candidates row with source='github'. A rejected/pending/
+ * metadata_update/non-GitHub proposal can never produce a card — each is
+ * excluded by construction, not by a runtime check the UI could get wrong.
+ */
+async function loadRecentlyApprovedGithubCards(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<ApprovedProposalEnrichmentCardData[]> {
+  const { data: proposals } = await supabase
+    .from("play_import_proposals")
+    .select("id, package_name, play_url, proposed_fields, applied_at")
+    .eq("proposal_type", "new_app")
+    .eq("status", "applied")
+    .order("applied_at", { ascending: false })
+    .limit(MAX_RECENTLY_APPROVED)
+    .returns<AppliedNewAppProposalRow[]>();
+
+  const applied = proposals ?? [];
+  if (applied.length === 0) return [];
+
+  const proposalIds = applied.map((p) => p.id);
+  const packageNames = [...new Set(applied.map((p) => p.package_name))];
+
+  const [{ data: candidates }, { data: apps }] = await Promise.all([
+    supabase
+      .from("play_discovery_candidates")
+      .select("proposal_id, source_ref")
+      .eq("source", "github")
+      .in("proposal_id", proposalIds)
+      .returns<{ proposal_id: string; source_ref: string }[]>(),
+    supabase
+      .from("apps")
+      .select("id, slug, name, icon_url, package_name")
+      .in("package_name", packageNames)
+      .returns<ApprovedAppRow[]>(),
+  ]);
+
+  const sourceRepoByProposalId = new Map((candidates ?? []).map((c) => [c.proposal_id, c.source_ref]));
+  const appByPackageName = new Map((apps ?? []).map((a) => [a.package_name, a]));
+
+  // Only proposals that are BOTH GitHub-discovered AND resolved to a real
+  // app row survive to this point — this is the actual filter that keeps
+  // non-GitHub and orphaned proposals off the page, not a UI-level check.
+  const githubApproved = applied
+    .map((p) => ({ proposal: p, sourceRepo: sourceRepoByProposalId.get(p.id), app: appByPackageName.get(p.package_name) }))
+    .filter(
+      (row): row is { proposal: AppliedNewAppProposalRow; sourceRepo: string; app: ApprovedAppRow } =>
+        Boolean(row.sourceRepo) && Boolean(row.app),
+    );
+
+  if (githubApproved.length === 0) return [];
+
+  const appIds = githubApproved.map((row) => row.app.id);
+  const attemptsByAppId = await getAttemptsByAppIds(supabase, appIds);
+
+  const versionIds = [...attemptsByAppId.values()]
+    .map((a) => a.version_id)
+    .filter((id): id is string => Boolean(id));
+  let versionsById = new Map<string, { version_name: string; version_code: number; published: boolean }>();
+  if (versionIds.length > 0) {
+    const { data: versions } = await supabase
+      .from("versions")
+      .select("id, version_name, version_code, published")
+      .in("id", versionIds)
+      .returns<{ id: string; version_name: string; version_code: number; published: boolean }[]>();
+    versionsById = new Map((versions ?? []).map((v) => [v.id, v]));
+  }
+
+  return githubApproved.map(({ proposal, sourceRepo, app }) => {
+    const attempt = attemptsByAppId.get(app.id) ?? null;
+    const version = attempt?.version_id ? (versionsById.get(attempt.version_id) ?? null) : null;
+    return {
+      proposalId: proposal.id,
+      appId: app.id,
+      appName: app.name,
+      appSlug: app.slug,
+      iconUrl: app.icon_url,
+      packageName: app.package_name,
+      sourceRepo,
+      approvedAt: proposal.applied_at,
+      status: describeEnrichmentStatus(attempt, version),
+    };
+  });
+}
 
 /**
  * Phase 4e: the admin review queue for public.play_import_proposals.
@@ -82,6 +203,18 @@ export default async function AdminPlayProposalsPage() {
   const newAppCount = proposals.filter((p) => p.proposalType === "new_app").length;
   const metadataUpdateCount = proposals.filter((p) => p.proposalType === "metadata_update").length;
 
+  // Entirely separate from, and never affecting, the pending-queue query
+  // above. A failure here (e.g. a transient query error) must never break
+  // the rest of this admin page — it only means the "Recently approved"
+  // section renders with nothing to show, exactly like a legitimate "no
+  // GitHub-discovered approvals yet" outcome.
+  let approvedCards: ApprovedProposalEnrichmentCardData[] = [];
+  try {
+    approvedCards = await loadRecentlyApprovedGithubCards(supabase);
+  } catch (caught) {
+    console.error("[admin/play-proposals] failed to load recently-approved enrichment status:", caught);
+  }
+
   return (
     <div>
       <h2 className="text-xl font-bold tracking-tight">Play Proposals</h2>
@@ -98,7 +231,7 @@ export default async function AdminPlayProposalsPage() {
       )}
 
       <div className="mt-6">
-        <PlayProposalsReview proposals={proposals} />
+        <PlayProposalsReview proposals={proposals} approvedCards={approvedCards} />
       </div>
     </div>
   );
