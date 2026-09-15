@@ -141,7 +141,7 @@ export function toPayload(parsed, filename) {
     throw new Error(`${filename}:\n  - ${problems.join("\n  - ")}`);
   }
 
-  return {
+  const payload = {
     title,
     slug,
     description,
@@ -149,9 +149,19 @@ export function toPayload(parsed, filename) {
     content,
     author: String(data.author ?? "").trim() || "GetApkFree Team",
     featured_image_url: String(data.featured_image_url ?? "").trim() || null,
-    related_app_ids: Array.isArray(related) ? related : [],
     published: data.published === undefined ? true : data.published === true,
   };
+
+  // Omitted entirely (not sent as []) when frontmatter has no
+  // related_app_ids at all, so the API route can tell "this post never
+  // mentioned related apps" apart from "this post explicitly clears them" —
+  // the former must never overwrite a value curated by hand through the
+  // admin editor when a routine content edit republishes the same slug.
+  if (Array.isArray(related)) {
+    payload.related_app_ids = related;
+  }
+
+  return payload;
 }
 
 async function publish(payload, { siteUrl, token }) {

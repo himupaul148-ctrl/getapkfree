@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { validateRelatedAppIds } from '@/lib/blog-related-app-ids';
 
 /** Constant-time, trimmed comparison. Lengths differ -> reject before the
  *  timingSafeEqual call, which throws on a length mismatch. */
@@ -78,7 +79,7 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
-    const { title, description, content, slug, category, published } = body;
+    const { title, description, content, slug, category, published, related_app_ids } = body;
     const isPublished = published === true;
 
     // Validate required fields
@@ -119,8 +120,51 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // related_app_ids: format/shape only — this can't confirm an ID actually
+    // exists in `apps`, only that the request looks like a well-formed list
+    // of UUIDs. Never trust the publish script alone here: this route is
+    // reachable directly with just the bearer token, the same reasoning the
+    // slug and content checks above already document.
+    const relatedAppIdsResult = validateRelatedAppIds(related_app_ids);
+    if (!relatedAppIdsResult.valid) {
+      return NextResponse.json(
+        { error: relatedAppIdsResult.error },
+        { status: 400 }
+      );
+    }
+
     // Initialize Supabase client with service role key
     const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+    // related_app_ids: existence check. One batched query against every
+    // unique requested ID — never one query per ID — comparing the returned
+    // set against what was requested. Any ID that doesn't resolve to a real
+    // app rejects the whole request before anything is written; silently
+    // dropping the bad ones would let a typo publish successfully and just
+    // quietly fail to show up in that post's sidebar later.
+    if (relatedAppIdsResult.provided && relatedAppIdsResult.ids.length > 0) {
+      const uniqueIds = [...new Set(relatedAppIdsResult.ids)];
+      const { data: foundApps, error: appsError } = await supabase
+        .from('apps')
+        .select('id')
+        .in('id', uniqueIds);
+
+      if (appsError) {
+        return NextResponse.json(
+          { error: 'Failed to validate related_app_ids', details: appsError.message },
+          { status: 500 }
+        );
+      }
+
+      const foundIds = new Set((foundApps ?? []).map((app) => app.id));
+      const missingIds = uniqueIds.filter((id) => !foundIds.has(id));
+      if (missingIds.length > 0) {
+        return NextResponse.json(
+          { error: 'related_app_ids references apps that do not exist', missingIds },
+          { status: 400 }
+        );
+      }
+    }
 
     // Check if blog post already exists
     const { data: existingPost, error: checkError } = await supabase
@@ -174,7 +218,11 @@ export async function POST(request: NextRequest) {
     if (existingPost) {
       // Update existing post. Only touch `published` if the caller
       // explicitly sent it, so re-running an update on a live post
-      // doesn't silently unpublish it.
+      // doesn't silently unpublish it. related_app_ids follows the same
+      // rule: only set when the request actually provided it (an explicit
+      // [] included), so a routine content republish whose frontmatter has
+      // no related_app_ids at all can never erase a value someone curated
+      // by hand through the admin editor.
       const updatePayload: Record<string, unknown> = {
         title,
         description,
@@ -187,13 +235,19 @@ export async function POST(request: NextRequest) {
         updatePayload.published = isPublished;
       }
 
+      if (relatedAppIdsResult.provided) {
+        updatePayload.related_app_ids = relatedAppIdsResult.ids;
+      }
+
       result = await supabase
         .from('blog_posts')
         .update(updatePayload)
         .eq('id', existingPost.id)
         .select();
     } else {
-      // Insert new post — drafts by default unless published: true is sent
+      // Insert new post — drafts by default unless published: true is sent.
+      // related_app_ids is always included: [] when the request didn't
+      // provide it, matching the column's own NOT NULL default.
       result = await supabase
         .from('blog_posts')
         .insert({
@@ -203,6 +257,7 @@ export async function POST(request: NextRequest) {
           slug,
           category,
           published: isPublished,
+          related_app_ids: relatedAppIdsResult.ids,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
