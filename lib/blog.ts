@@ -4,6 +4,7 @@ import { resolveQueryResult } from "@/lib/supabase/query-result";
 import { APP_SUMMARY_SELECT, toSummary } from "@/lib/catalogue";
 import type { AppSummary, AppWithVersions } from "@/lib/types";
 import { excerpt, readingTime } from "@/lib/markdown";
+import { orderAndLimitRelatedApps } from "@/lib/related-apps-order";
 
 export const BLOG_CATEGORIES = [
   "privacy",
@@ -223,21 +224,25 @@ export async function getRelatedApps(
   limit = 6,
 ): Promise<{ apps: AppSummary[]; fallback: boolean }> {
   if (ids.length > 0) {
+    // No .limit() here deliberately: an .in() query carries no ORDER BY of
+    // its own, so applying a database-side limit before the reordering
+    // below would let Postgres hand back an arbitrary `limit` rows out of a
+    // longer related_app_ids list — not necessarily the first ones in the
+    // author's order. `ids` is already bounded by how many apps a post
+    // actually names (in practice under a dozen), so fetching all of them
+    // and cutting down to `limit` afterward costs nothing meaningful.
     const { data } = await supabase
       .from("apps")
       .select(APP_SUMMARY_SELECT)
       .in("id", ids)
-      .limit(limit)
       .returns<AppWithVersions[]>();
 
     if (data && data.length > 0) {
       // Preserve the order the author chose rather than whatever Postgres
-      // returns.
-      const order = new Map(ids.map((id, index) => [id, index]));
-      const sorted = [...data].sort(
-        (a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0),
-      );
-      return { apps: sorted.map(toSummary), fallback: false };
+      // returns, then cut down to `limit` only after that ordering is
+      // applied — never before. See lib/related-apps-order.ts.
+      const ordered = orderAndLimitRelatedApps(data, ids, limit);
+      return { apps: ordered.map(toSummary), fallback: false };
     }
   }
 
