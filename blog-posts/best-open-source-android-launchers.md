@@ -4,7 +4,7 @@ slug: "best-open-source-android-launchers"
 description: "Eight open-source Android launchers compared using verified app, version, and permission data — search-first, keyboard-first, TV, and game launchers included."
 category: "guides"
 author: "GetApkFree Team"
-published: false
+published: true
 related_app_ids: ["64897b58-ff4a-4b00-bce1-3656c5d8f4e8", "4857e1ea-861a-4788-8bce-efd01bb57ffa", "98c83fce-c84f-4e1f-87d3-7b9a1ee812c7", "32bc147f-9980-4c71-a929-e5dd12e65262", "03336da8-c3c4-4d60-a4c3-3f3a1a5e1058", "b278f8f2-08dd-49e7-9355-3f9d35ea1437", "34fe43b5-519b-40ed-a32e-f8a0c0cf173b", "f7d9f70d-3e4e-4991-9ce3-814def67f8f0"]
 ---
 
