@@ -4,7 +4,7 @@ slug: "how-to-encrypt-files-android-open-source"
 description: "A factual comparison of four open-source Android apps in GetApkFree's catalogue — two that encrypt files, and two that access containers encrypted elsewhere."
 category: "privacy"
 author: "GetApkFree Team"
-published: false
+published: true
 related_app_ids: ["ec25236c-3c74-484d-982b-08fb9c75b11a", "32d54626-8acf-452f-b923-8f913b088fb5", "2a1b160e-387c-4d7d-83dc-0158b3584ac6", "a9054d89-700e-47b1-bbca-70163dc34530"]
 ---
 
