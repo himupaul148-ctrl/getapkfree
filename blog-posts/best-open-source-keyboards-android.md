@@ -4,7 +4,7 @@ slug: "best-open-source-keyboards-android"
 description: "Six open-source Android keyboards compared using verified license, permission, and version data — including which ones document offline voice typing today."
 category: "privacy"
 author: "GetApkFree Team"
-published: false
+published: true
 related_app_ids: ["070a61f8-f4e0-4684-ac36-422b908d019a", "b14bba2a-e126-4538-ab1b-32dc73ebde50", "c5b762af-2f92-4706-8242-c7cebfdef661", "07714e0d-71e0-4e98-b73b-939d6df2a66d", "f0a43264-8a5d-4e28-97b6-c330bd184e34", "05e83c7a-e97a-4ef4-a581-9107e4878040"]
 ---
 
