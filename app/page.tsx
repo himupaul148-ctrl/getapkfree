@@ -19,7 +19,20 @@ import {
   normaliseSort,
   normaliseSource,
 } from "@/lib/filters";
-import { absolute, categoryMetaDescription, SITE_DESCRIPTION } from "@/lib/seo";
+import { absolute, categoryMetaDescription, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/seo";
+
+/**
+ * The homepage's own title — kept as one constant so the plain <title> and
+ * the openGraph/twitter overrides below can never drift apart from each
+ * other. Deliberately NOT changed in app/layout.tsx's title.default or
+ * openGraph.title/twitter.title: those are inherited by the category and
+ * search branches of this same generateMetadata() too (neither sets its own
+ * openGraph/twitter), so a layout-level edit would have silently changed
+ * their og:title/twitter:title as well. Overriding only here, with the
+ * layout's other openGraph/twitter fields restated verbatim, changes
+ * nothing for those other branches.
+ */
+const HOME_TITLE = "GetApkFree - free android apk download";
 
 // Reading searchParams for shareable filter URLs makes this route dynamic, so
 // it cannot be ISR. The Supabase query behind it is cached for an hour instead
@@ -88,10 +101,28 @@ export async function generateMetadata({
   }
 
   return {
-    title: "GetApkFree — Free, Open-Source Android APK Downloads",
+    title: HOME_TITLE,
     description: SITE_DESCRIPTION,
     alternates: { canonical: absolute("/") },
     robots: { index: !filtered, follow: true },
+    // Restates the layout's other openGraph/twitter fields verbatim so only
+    // `title` changes here — Next.js merges these objects shallowly (a
+    // segment that sets its own `openGraph` replaces the whole object, not
+    // just the fields it names), so leaving them out would silently drop
+    // description/type/siteName/locale/url from the homepage's og tags.
+    openGraph: {
+      type: "website",
+      siteName: SITE_NAME,
+      locale: "en_GB",
+      url: SITE_URL,
+      title: HOME_TITLE,
+      description: SITE_DESCRIPTION,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: HOME_TITLE,
+      description: SITE_DESCRIPTION,
+    },
   };
 }
 
