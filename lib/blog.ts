@@ -143,23 +143,24 @@ export async function getPublishedPostsForSitemap(): Promise<SitemapBlogPost[]> 
 }
 
 export async function getPostBySlug(slug: string): Promise<BlogPost | null> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("blog_posts")
     .select(`${LIST_COLUMNS}, content`)
     .eq("slug", slug)
     .eq("published", true)
     .maybeSingle<BlogPost>();
-  return data;
+  return resolveQueryResult(data, error, `getPostBySlug: Supabase query failed for slug "${slug}"`);
 }
 
 /** Slugs for generateStaticParams — without it the segment is not ISR. */
 export async function getPublishedSlugs(): Promise<string[]> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("blog_posts")
     .select("slug")
     .eq("published", true)
     .returns<{ slug: string }[]>();
-  return (data ?? []).map((row) => row.slug);
+  const rows = resolveQueryResult(data, error, "getPublishedSlugs: Supabase query failed") ?? [];
+  return rows.map((row) => row.slug);
 }
 
 /**
