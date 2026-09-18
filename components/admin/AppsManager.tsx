@@ -248,6 +248,7 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
             <table className="w-full text-left text-sm">
               <thead className="bg-base-850 text-xs text-fg-dim">
                 <tr>
+                  <Th className="w-10">#</Th>
                   <Th>App</Th>
                   <Th>Source</Th>
                   <Th>Category</Th>
@@ -258,9 +259,12 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-base-800 bg-base-900">
-                {rows.map((app) => (
+                {rows.map((app, index) => (
                   <Fragment key={app.id}>
                     <tr>
+                      <td className="px-4 py-3 text-xs tabular-nums text-fg-dim">
+                        {index + 1}
+                      </td>
                       <td className="px-4 py-3">
                         <Link
                           href={`/app/${app.slug}`}
@@ -303,7 +307,7 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
                       </td>
                     </tr>
                     <tr>
-                      <td colSpan={7} className="border-t border-base-800/60 bg-base-950/40 px-4 py-3">
+                      <td colSpan={8} className="border-t border-base-800/60 bg-base-950/40 px-4 py-3">
                         <GithubEnrichmentStatus attempt={app.enrichmentAttempt} />
                         <VersionList
                           app={app}
@@ -322,20 +326,27 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
           </div>
 
           <ul className="space-y-3 md:hidden">
-            {rows.map((app) => (
+            {rows.map((app, index) => (
               <li
                 key={app.id}
                 className="rounded-2xl border border-base-800 bg-base-900 p-4"
               >
-                <Link
-                  href={`/app/${app.slug}`}
-                  className="font-medium text-fg hover:text-brand-400"
-                >
-                  {app.name}
-                </Link>
-                <p className="font-mono text-xs break-all text-fg-dim">
-                  {app.packageName}
-                </p>
+                <div className="flex items-start gap-2">
+                  <span className="mt-0.5 shrink-0 text-xs tabular-nums text-fg-dim">
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <Link
+                      href={`/app/${app.slug}`}
+                      className="font-medium text-fg hover:text-brand-400"
+                    >
+                      {app.name}
+                    </Link>
+                    <p className="font-mono text-xs break-all text-fg-dim">
+                      {app.packageName}
+                    </p>
+                  </div>
+                </div>
                 <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-fg-muted">
                   <div className="mb-1">
                     <SourceBadge

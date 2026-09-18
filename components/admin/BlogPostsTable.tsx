@@ -196,6 +196,7 @@ export default function BlogPostsTable({ posts }: { posts: BlogSummary[] }) {
           <table className="w-full text-left text-sm">
             <thead className="bg-base-850 text-xs text-fg-dim">
               <tr>
+                <th className="w-10 px-4 py-3 font-medium">#</th>
                 <th className="px-4 py-3">
                   <input
                     type="checkbox"
@@ -216,8 +217,11 @@ export default function BlogPostsTable({ posts }: { posts: BlogSummary[] }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-base-800 bg-base-900">
-              {rows.map((post) => (
+              {rows.map((post, index) => (
                 <tr key={post.id}>
+                  <td className="px-4 py-3 text-xs tabular-nums text-fg-dim">
+                    {index + 1}
+                  </td>
                   <td className="px-4 py-3">
                     <input
                       type="checkbox"
