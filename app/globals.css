@@ -40,41 +40,13 @@
     "Liberation Mono", Menlo, monospace;
 }
 
-/* Dark is the site's default look. */
-:root {
-  color-scheme: dark;
-
-  --c-base-950: #070a0f;
-  --c-base-900: #0b0f16;
-  --c-base-850: #111823;
-  --c-base-800: #161f2c;
-  --c-base-700: #1f2a3a;
-  --c-base-600: #2c3a4d;
-
-  --c-fg: #e6edf3;
-  --c-fg-muted: #97a6b8;
-  --c-fg-dim: #6a7a8d;
-
-  --c-brand-300: #86efac;
-  --c-brand-400: #4ade80;
-  --c-brand-500: #22c55e;
-  --c-brand-600: #16a34a;
-
-  --c-azure-300: #7dd3fc;
-  --c-azure-400: #38bdf8;
-  --c-azure-500: #0ea5e9;
-
-  --c-warn-300: #fcd34d;
-  --c-warn-500: #f59e0b;
-  --c-danger-300: #fda4af;
-  --c-danger-500: #f43f5e;
-}
-
 /*
- * Light theme. Greens and blues are darkened so they keep their contrast
- * ratio against a pale background — the dark-mode values are unreadable there.
+ * Light is the site's default look — matches the brand's light/white,
+ * green-accent visual identity. Greens and blues here are darkened relative
+ * to the dark-theme values below so they keep their contrast ratio against a
+ * pale background.
  */
-:root[data-theme="light"] {
+:root {
   color-scheme: light;
 
   --c-base-950: #f6f8fb;
@@ -110,6 +82,36 @@
   --c-warn-500: #b45309;
   --c-danger-300: #be123c;
   --c-danger-500: #e11d48;
+}
+
+/* Dark theme, now opt-in via the toggle in profile settings. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --c-base-950: #070a0f;
+  --c-base-900: #0b0f16;
+  --c-base-850: #111823;
+  --c-base-800: #161f2c;
+  --c-base-700: #1f2a3a;
+  --c-base-600: #2c3a4d;
+
+  --c-fg: #e6edf3;
+  --c-fg-muted: #97a6b8;
+  --c-fg-dim: #6a7a8d;
+
+  --c-brand-300: #86efac;
+  --c-brand-400: #4ade80;
+  --c-brand-500: #22c55e;
+  --c-brand-600: #16a34a;
+
+  --c-azure-300: #7dd3fc;
+  --c-azure-400: #38bdf8;
+  --c-azure-500: #0ea5e9;
+
+  --c-warn-300: #fcd34d;
+  --c-warn-500: #f59e0b;
+  --c-danger-300: #fda4af;
+  --c-danger-500: #f43f5e;
 }
 
 body {

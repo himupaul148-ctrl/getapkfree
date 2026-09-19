@@ -61,7 +61,7 @@ export default function FavoriteToggle({
         aria-pressed={favorite}
         // Until the session resolves the heart is simply unfilled; no spinner,
         // because a flicker on every card would be worse than a late fill.
-        className={`group inline-flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2.5 text-sm transition-colors ${
+        className={`group inline-flex shrink-0 items-center gap-2 self-start rounded-xl border px-3 py-2.5 text-sm transition-colors ${
           favorite
             ? "border-danger-500/50 bg-danger-500/10 text-danger-300"
             : "border-base-700 text-fg-muted hover:border-danger-500/50 hover:text-danger-300"

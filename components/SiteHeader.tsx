@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import Logo from "@/components/Logo";
 import UserMenu from "@/components/UserMenu";
+import { useMobileUi } from "@/components/MobileUiProvider";
 import { useSession } from "@/components/SessionProvider";
 import ModeBadge from "@/components/ModeBadge";
 import AdminBar from "@/components/AdminBar";
@@ -24,6 +25,7 @@ export default function SiteHeader() {
   // "unknown" is a real state now: still checking, or a check that failed.
   const loading = session.status === "unknown" && !session.expired && !session.error;
   const [menuOpen, setMenuOpen] = useState(false);
+  const { openSearch } = useMobileUi();
 
   return (
     <header className="sticky top-0 z-30 border-b border-base-800 bg-base-950/90 backdrop-blur">
@@ -88,12 +90,29 @@ export default function SiteHeader() {
               </Link>
             </>
           )}
+          {/* Phones (<768px) get search + secondary nav from the bottom
+              nav's Search tab and More sheet instead — this icon and the
+              hamburger below would otherwise duplicate that. */}
+          <button
+            type="button"
+            onClick={openSearch}
+            aria-label="Search"
+            className="rounded-lg border border-base-700 p-2 text-fg-muted md:hidden"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+              <path d="m20 20-3.5-3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </button>
+
+          {/* Tablets (768–1023px, no bottom nav) still need this; phones
+              get secondary nav from the bottom nav's More sheet instead. */}
           <button
             type="button"
             onClick={() => setMenuOpen((open) => !open)}
             aria-expanded={menuOpen}
             aria-label="Toggle menu"
-            className="rounded-lg border border-base-700 p-2 text-fg-muted lg:hidden"
+            className="hidden rounded-lg border border-base-700 p-2 text-fg-muted md:block lg:hidden"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path
@@ -107,13 +126,8 @@ export default function SiteHeader() {
         </div>
       </div>
 
-      {/* Mobile: search always reachable, nav behind the toggle. */}
-      <div className="border-t border-base-800 px-4 py-2 md:hidden">
-        <HeaderSearch idPrefix="header-mobile" placeholder="Search apps…" />
-      </div>
-
       {menuOpen && (
-        <nav className="border-t border-base-800 px-4 py-3 lg:hidden">
+        <nav className="hidden border-t border-base-800 px-4 py-3 md:block lg:hidden">
           <ul className="flex flex-col gap-1 text-sm">
             {NAV.map((item) => (
               <li key={item.href}>

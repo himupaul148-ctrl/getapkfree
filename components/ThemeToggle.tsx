@@ -18,15 +18,17 @@ function resolve(theme: Theme): "dark" | "light" {
     : "dark";
 }
 
+// Light is the default look (see ThemeScript.tsx), so only "dark" needs an
+// attribute — the absence of one already means light.
 function apply(theme: Theme) {
   const resolved = resolve(theme);
   const root = document.documentElement;
-  if (resolved === "light") root.setAttribute("data-theme", "light");
+  if (resolved === "dark") root.setAttribute("data-theme", "dark");
   else root.removeAttribute("data-theme");
 }
 
 export default function ThemeToggle({
-  initial = "dark",
+  initial = "light",
   persist = false,
 }: {
   initial?: Theme;

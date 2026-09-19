@@ -117,13 +117,16 @@ export default async function HomeSections({
       initial={filters}
     >
       {/* Sits above Trending so the editorial route is offered before the
-          reader falls into browsing the catalogue. */}
-      <section className="mt-16">
+          reader falls into browsing the catalogue. Stacked on mobile (each
+          part on its own row) rather than wrapped inline — a badge, a
+          multi-line description and a trailing link sharing one flex-wrap
+          row read as cramped and misaligned below ~400px. */}
+      <section className="mt-10 sm:mt-16">
         <Link
           href="/blog"
-          className="group flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-azure-500/25 bg-azure-500/5 p-5 transition-colors hover:border-azure-500/50"
+          className="group flex flex-col gap-3 rounded-2xl border border-azure-500/25 bg-azure-500/5 p-4 transition-colors hover:border-azure-500/50 sm:flex-row sm:items-center sm:gap-4 sm:p-5"
         >
-          <span className="rounded-full bg-azure-500/15 px-2.5 py-0.5 text-xs font-medium text-azure-300">
+          <span className="w-fit rounded-full bg-azure-500/15 px-2.5 py-0.5 text-xs font-medium text-azure-300">
             New
           </span>
           <span className="min-w-0 flex-1">
@@ -147,11 +150,11 @@ export default async function HomeSections({
         <section
           id="trending"
           aria-labelledby="explore-apps-heading"
-          className="mt-16"
+          className="mt-12 sm:mt-16"
         >
           <h2
             id="explore-apps-heading"
-            className="text-2xl font-bold tracking-tight"
+            className="text-xl font-bold tracking-tight sm:text-2xl"
           >
             Explore Apps
           </h2>
@@ -172,7 +175,7 @@ export default async function HomeSections({
 
       <CategoryCards counts={counts} />
 
-      <div className="mt-16 flex justify-end">
+      <div className="mt-10 flex justify-end sm:mt-16">
         <Link
           href="/apps"
           className="text-sm font-medium text-brand-400 hover:underline"
@@ -193,8 +196,8 @@ export default async function HomeSections({
       )}
 
       {recentlyUpdated.length > 0 && (
-        <section id="recently-updated" className="mt-20">
-          <h2 className="text-2xl font-bold tracking-tight">Recently updated</h2>
+        <section id="recently-updated" className="mt-12 sm:mt-20">
+          <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Recently updated</h2>
           <p className="mt-1 text-sm text-fg-muted">
             The ten most recent builds to clear scanning.
           </p>

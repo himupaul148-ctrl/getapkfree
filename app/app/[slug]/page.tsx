@@ -128,7 +128,7 @@ export default async function AppDetailPage({ params }: Props) {
   const licenseAndSdk = licenseAndTargetSdkLine(app.license, latest?.target_sdk);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
       <AppJsonLd app={app} latest={latest} />
       <BreadcrumbJsonLd
         items={[
@@ -151,16 +151,30 @@ export default async function AppDetailPage({ params }: Props) {
         ← Back to catalogue
       </Link>
 
-      {/* ---- App header ---- */}
-      <header className="mt-6 flex flex-col gap-5 sm:flex-row sm:items-start">
-        <AppIcon src={app.icon_url} name={app.name} size={104} priority />
+      {/* ---- App header ----
+          Favourite toggle is two instances, not one repositioned by CSS:
+          mobile gets the compact absolute-positioned icon (same corner
+          treatment AppCard already uses everywhere else), so it reads as
+          part of the icon/title block instead of sitting alone as its own
+          full-width row below the badges. Desktop has the horizontal room
+          for the labelled "button" variant to sit naturally at the end of
+          the row instead. */}
+      <header className="relative mt-5 flex flex-col gap-4 sm:mt-6 sm:flex-row sm:items-start sm:gap-5">
+        <div className="sm:hidden">
+          <FavoriteToggle appId={app.id} appName={app.name} />
+        </div>
+
+        <AppIcon src={app.icon_url} name={app.name} size={80} priority />
 
         <div className="min-w-0 flex-1">
-          <h1 className="text-3xl font-bold tracking-tight text-balance sm:text-4xl">
+          <h1 className="text-2xl font-bold tracking-tight text-balance sm:text-4xl">
             {app.name}
           </h1>
           <p className="mt-1 text-fg-muted">{app.developer_name}</p>
-          <p className="mt-1 font-mono text-sm break-all text-fg-dim">
+          {/* A technical implementation detail, not something a reader scans
+              for — smaller and dimmer than the developer name above it
+              rather than matching its weight. */}
+          <p className="mt-1 font-mono text-xs break-all text-fg-dim">
             {app.package_name}
           </p>
 
@@ -184,7 +198,9 @@ export default async function AppDetailPage({ params }: Props) {
           </div>
         </div>
 
-        <FavoriteToggle appId={app.id} appName={app.name} variant="button" />
+        <div className="hidden sm:block">
+          <FavoriteToggle appId={app.id} appName={app.name} variant="button" />
+        </div>
       </header>
 
       {/* ---- Answer-first summary: one factual sentence a reader or search
@@ -311,7 +327,7 @@ export default async function AppDetailPage({ params }: Props) {
       )}
 
       {/* ---- Description ---- */}
-      <section className="mt-10">
+      <section className="mt-8 sm:mt-10">
         <h2 className="text-lg font-bold tracking-tight">About this app</h2>
         <p className="mt-3 leading-relaxed text-fg-muted">{app.description}</p>
       </section>
@@ -371,14 +387,14 @@ export default async function AppDetailPage({ params }: Props) {
 
       {/* ---- Related apps ---- */}
       {related.length > 0 && (
-        <section className="mt-16">
-          <h2 className="text-2xl font-bold tracking-tight">
+        <section className="mt-12 sm:mt-16">
+          <h2 className="text-xl font-bold tracking-tight sm:text-2xl">
             More in {app.category}
           </h2>
           <p className="mt-1 text-sm text-fg-muted">
             Other apps in this category, most downloaded first.
           </p>
-          <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-5 grid gap-4 sm:mt-6 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4">
             {related.map((item) => (
               <AppCard key={item.id} app={item} />
             ))}

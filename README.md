@@ -98,8 +98,8 @@ Supabase dashboard.
 
 ## Theming
 
-Dark is the default. `app/globals.css` defines the palette twice — once on
-`:root` and once on `:root[data-theme="light"]` — and `@theme inline` makes the
+Light is the default. `app/globals.css` defines the palette twice — once on
+`:root` and once on `:root[data-theme="dark"]` — and `@theme inline` makes the
 Tailwind utilities resolve through those variables, so no class names change.
 The light greens and blues are darker than their dark-theme counterparts to
 hold 4.5:1 contrast on a pale background. `components/ThemeScript.tsx` applies
