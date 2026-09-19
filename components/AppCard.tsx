@@ -9,33 +9,36 @@ import type { AppSummary } from "@/lib/types";
 
 export default function AppCard({ app, rank }: { app: AppSummary; rank?: number }) {
   return (
-    <div className="relative h-full">
+    <div className="relative h-full w-full min-w-0">
       <FavoriteToggle appId={app.id} appName={app.name} />
       <Link
         href={`/app/${app.slug}`}
-        className="group flex h-full flex-col rounded-2xl border border-base-800 bg-base-900 p-5 transition-colors hover:border-brand-500/50 hover:bg-base-850 focus-visible:border-brand-500 focus-visible:outline-none"
+        className="group flex h-full flex-col rounded-2xl border border-base-800 bg-base-900 p-4 transition-colors hover:border-brand-500/50 hover:bg-base-850 focus-visible:border-brand-500 focus-visible:outline-none sm:p-5"
       >
       {/* Leave room for the heart in the top-right corner. */}
-      <div className="flex items-start gap-4 pr-10">
-        <AppIcon src={app.iconUrl} name={app.name} />
+      <div className="flex items-start gap-3 pr-9 sm:gap-4 sm:pr-10">
+        <AppIcon src={app.iconUrl} name={app.name} size={48} />
         <div className="min-w-0 flex-1">
           <h3 className="truncate font-semibold text-fg transition-colors group-hover:text-brand-400">
             {app.name}
           </h3>
           <p className="truncate text-sm text-fg-dim">{app.developer}</p>
           {app.category && (
-            <span className="mt-2 inline-block rounded-full border border-base-700 px-2.5 py-0.5 text-xs text-fg-muted">
+            <span className="mt-1.5 inline-block rounded-full border border-base-700 px-2.5 py-0.5 text-xs text-fg-muted sm:mt-2">
               {app.category}
             </span>
           )}
         </div>
       </div>
 
-      <p className="mt-4 line-clamp-2 flex-1 text-sm leading-relaxed text-fg-muted">
+      {/* Single line, not two: the full description lives on the app detail
+          page — here it's a scan-friendly preview, and one line keeps the
+          card compact without dropping any of the badges/facts below it. */}
+      <p className="mt-2.5 line-clamp-1 flex-1 text-sm leading-relaxed text-fg-muted sm:mt-3">
         {app.description}
       </p>
 
-      <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+      <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-2 sm:mt-3">
         <SourceBadge sourceType={app.sourceType} externalUrl={app.externalUrl} />
         {app.sourceType !== "external" && (
           <ScanBadge
@@ -49,7 +52,7 @@ export default function AppCard({ app, rank }: { app: AppSummary; rank?: number 
         )}
       </div>
 
-      <dl className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-base-800 pt-3 text-xs text-fg-dim">
+      <dl className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-base-800 pt-2.5 text-xs text-fg-dim sm:mt-3">
         {rank !== undefined && (
           <div className="flex gap-1.5">
             <dt className="sr-only">Rank</dt>

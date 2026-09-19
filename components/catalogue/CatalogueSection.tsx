@@ -8,19 +8,13 @@ import { useFilters } from "@/components/catalogue/FilterProvider";
 import { androidLevel, trendingScore } from "@/lib/format";
 import { track } from "@/lib/gtag";
 import { clearVisible, readVisible, writeVisible } from "@/lib/restore-count";
+import { CATEGORIES } from "@/lib/types";
 import type { AppSummary } from "@/lib/types";
 
 const MAX_SUGGESTIONS = 6;
 
-/**
- * Cards rendered per page. Filtering still runs over the whole catalogue — only
- * the rendering is capped. Putting all 300+ cards in the DOM at once cost ~1.8s
- * of hydration blocking time on a throttled mobile CPU.
- */
-const PAGE_SIZE = 24;
-
 /** Name, description and package name, plus developer and category. */
-function matches(app: AppSummary, needle: string): boolean {
+function matchesQuery(app: AppSummary, needle: string): boolean {
   return (
     app.name.toLowerCase().includes(needle) ||
     (app.description?.toLowerCase().includes(needle) ?? false) ||
@@ -30,12 +24,20 @@ function matches(app: AppSummary, needle: string): boolean {
   );
 }
 
+/**
+ * Cards rendered per page. Filtering still runs over the whole catalogue — only
+ * the rendering is capped. Putting all 300+ cards in the DOM at once cost ~1.8s
+ * of hydration blocking time on a throttled mobile CPU.
+ */
+const PAGE_SIZE = 24;
+
 export default function CatalogueSection({ apps }: { apps: AppSummary[] }) {
   const router = useRouter();
   const {
     search,
     setSearch,
     category,
+    setCategory,
     android,
     sort,
     source,
@@ -52,6 +54,18 @@ export default function CatalogueSection({ apps }: { apps: AppSummary[] }) {
   // cards and then jump to 96, which is worse than not restoring at all.
   const [visible, setVisible] = useState(() => readVisible(PAGE_SIZE));
   const searchRef = useRef<HTMLDivElement>(null);
+
+  // Desktop sidebar's category list — counts every category regardless of
+  // which filters are currently active, same as CategoryCards on the
+  // homepage, so a count never appears to shrink just because another
+  // filter is also selected.
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const app of apps) {
+      if (app.category) counts[app.category] = (counts[app.category] ?? 0) + 1;
+    }
+    return counts;
+  }, [apps]);
 
   useEffect(() => {
     function onPointerDown(event: MouseEvent) {
@@ -85,16 +99,15 @@ export default function CatalogueSection({ apps }: { apps: AppSummary[] }) {
     // Names first: someone typing a name wants that app, not a description hit.
     const byName = apps.filter((app) => app.name.toLowerCase().includes(needle));
     const rest = apps.filter(
-      (app) => !app.name.toLowerCase().includes(needle) && matches(app, needle),
+      (app) => !app.name.toLowerCase().includes(needle) && matchesQuery(app, needle),
     );
     return [...byName, ...rest].slice(0, MAX_SUGGESTIONS);
   }, [apps, needle]);
 
   const results = useMemo(() => {
     const deviceLevel = androidLevel(android || null);
-
     const filtered = apps.filter((app) => {
-      if (needle && !matches(app, needle)) return false;
+      if (needle && !matchesQuery(app, needle)) return false;
       if (category && app.category !== category) return false;
       if (source !== "all" && app.sourceType !== source) return false;
       // "Android X+" is the device you have — show what will install on it.
@@ -193,29 +206,78 @@ export default function CatalogueSection({ apps }: { apps: AppSummary[] }) {
   }
 
   return (
-    <section id="catalogue" className="mt-20">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">All apps</h2>
-          <p className="mt-1 text-sm text-fg-muted" aria-live="polite">
-            Showing {results.length} app{results.length === 1 ? "" : "s"}
-            {isDefault ? "" : ` of ${apps.length}`}
-            {category && ` in ${category}`}
-          </p>
-        </div>
-        {!isDefault && (
-          <button
-            type="button"
-            onClick={reset}
-            className="rounded-lg border border-base-700 px-3 py-2 text-sm text-fg-muted transition-colors hover:border-base-600 hover:text-fg"
-          >
-            Clear filters
-          </button>
-        )}
-      </div>
+    <section id="catalogue" className="mt-12 sm:mt-20">
+      <div className="lg:grid lg:grid-cols-[240px_1fr] lg:items-start lg:gap-8">
+        {/* Desktop-only left sidebar (1024px+). Tablets and phones keep the
+            inline filter bar / drawer below, unchanged. */}
+        <aside className="hidden lg:block">
+          <h2 className="text-base font-bold tracking-tight">Categories</h2>
+          <ul className="mt-3 space-y-0.5">
+            <li>
+              <button
+                type="button"
+                onClick={() => setCategory("")}
+                aria-pressed={!category}
+                className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-sm transition-colors ${
+                  !category
+                    ? "bg-brand-500/10 font-semibold text-brand-400"
+                    : "text-fg-muted hover:bg-base-850 hover:text-fg"
+                }`}
+              >
+                All Apps
+                <span className="text-xs text-fg-dim">{apps.length}</span>
+              </button>
+            </li>
+            {CATEGORIES.map((name) => (
+              <li key={name}>
+                <button
+                  type="button"
+                  onClick={() => setCategory(name)}
+                  aria-pressed={category === name}
+                  className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-sm transition-colors ${
+                    category === name
+                      ? "bg-brand-500/10 font-semibold text-brand-400"
+                      : "text-fg-muted hover:bg-base-850 hover:text-fg"
+                  }`}
+                >
+                  {name}
+                  <span className="text-xs text-fg-dim">{categoryCounts[name] ?? 0}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
 
-      <div className="mt-5 rounded-2xl border border-base-800 bg-base-900 p-4">
-        <div className="grid gap-3 md:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]">
+          <h3 className="mt-6 text-xs font-semibold tracking-wider text-fg-dim uppercase">
+            Filters
+          </h3>
+          <div className="mt-3 space-y-3">
+            <FilterControls idPrefix="sidebar" variant="sidebar" />
+          </div>
+        </aside>
+
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold tracking-tight sm:text-2xl lg:hidden">All apps</h2>
+              <p className="mt-1 text-sm text-fg-muted" aria-live="polite">
+                Showing {results.length} app{results.length === 1 ? "" : "s"}
+                {isDefault ? "" : ` of ${apps.length}`}
+                {category && ` in ${category}`}
+              </p>
+            </div>
+            {!isDefault && (
+              <button
+                type="button"
+                onClick={reset}
+                className="rounded-lg border border-base-700 px-3 py-2 text-sm text-fg-muted transition-colors hover:border-base-600 hover:text-fg"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-base-800 bg-base-900 p-4">
+            <div className="grid gap-3 md:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))] lg:grid-cols-1">
           {/* Search stays visible at every width. */}
           <div ref={searchRef} className="relative">
             <label htmlFor="catalogue-search" className="sr-only">
@@ -284,8 +346,9 @@ export default function CatalogueSection({ apps }: { apps: AppSummary[] }) {
             )}
           </div>
 
-          {/* Desktop: dropdowns inline. Mobile: behind the Filters button. */}
-          <div className="hidden md:contents">
+          {/* Tablet only (768–1023px): dropdowns inline. Desktop (1024px+)
+              gets the sidebar instead; phones get the Filters button below. */}
+          <div className="hidden md:contents lg:hidden">
             <FilterControls idPrefix="desktop" />
           </div>
 
@@ -323,7 +386,7 @@ export default function CatalogueSection({ apps }: { apps: AppSummary[] }) {
             aria-modal="true"
             aria-label="Filters"
             onClick={(e) => e.stopPropagation()}
-            className="max-h-[85vh] w-full overflow-y-auto rounded-t-2xl border-t border-base-700 bg-base-900 p-5"
+            className="max-h-[85vh] w-full overflow-y-auto rounded-t-2xl border-t border-base-700 bg-base-900 p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
           >
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold">Filters</h3>
@@ -339,8 +402,8 @@ export default function CatalogueSection({ apps }: { apps: AppSummary[] }) {
               </button>
             </div>
 
-            <div className="mt-5 space-y-4">
-              <FilterControls idPrefix="drawer" />
+            <div className="mt-5 space-y-5">
+              <FilterControls idPrefix="drawer" variant="chips" />
             </div>
 
             <div className="mt-6 flex gap-3">
@@ -349,14 +412,14 @@ export default function CatalogueSection({ apps }: { apps: AppSummary[] }) {
                 onClick={reset}
                 className="flex-1 rounded-xl border border-base-700 px-4 py-3 text-sm text-fg-muted"
               >
-                Clear filters
+                Reset
               </button>
               <button
                 type="button"
                 onClick={() => setDrawerOpen(false)}
                 className="flex-1 rounded-xl bg-brand-500 px-4 py-3 text-sm font-semibold text-base-950"
               >
-                Show {results.length} app{results.length === 1 ? "" : "s"}
+                Apply Filters ({results.length})
               </button>
             </div>
           </div>
@@ -376,7 +439,14 @@ export default function CatalogueSection({ apps }: { apps: AppSummary[] }) {
         </div>
       ) : (
         <>
-          <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {/* 2 columns from sm all the way through the sidebar's 1024–1279px
+              range — jumping to 3 any earlier than xl (1280px) is what made
+              cards feel cramped there once the 240px sidebar is also taking
+              width (confirmed: card content was truncating at both 768px
+              and 1024px against 3 columns; 2 stays comfortable through the
+              whole range). 3 only once xl gives the combined layout enough
+              room again. */}
+          <div className="mt-5 grid grid-cols-1 gap-4 sm:mt-6 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3">
             {results.slice(0, visible).map((app) => (
               <AppCard key={app.id} app={app} />
             ))}
@@ -398,6 +468,8 @@ export default function CatalogueSection({ apps }: { apps: AppSummary[] }) {
           )}
         </>
       )}
+        </div>
+      </div>
     </section>
   );
 }

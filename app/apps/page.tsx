@@ -80,7 +80,7 @@ export default async function AppsIndexPage({
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
       <BreadcrumbJsonLd
         items={[
           { name: "Home", url: absolute("/") },
@@ -90,10 +90,10 @@ export default async function AppsIndexPage({
 
       <header className="max-w-3xl">
         <p className="font-mono text-sm text-brand-400">GetApkFree Catalogue</p>
-        <h1 className="mt-3 text-4xl font-extrabold tracking-tight text-balance sm:text-5xl">
+        <h1 className="mt-3 text-3xl font-extrabold tracking-tight text-balance sm:text-4xl lg:text-5xl">
           All Apps
         </h1>
-        <p className="mt-4 text-lg leading-relaxed text-fg-muted">
+        <p className="mt-3 text-base leading-relaxed text-fg-muted sm:mt-4 sm:text-lg">
           Every app currently published on GetApkFree, {apps.length} in total.
           Looking to search or filter instead?{" "}
           <Link href="/#catalogue" className="text-brand-400 hover:underline">

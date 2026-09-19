@@ -2,6 +2,10 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import SiteHeader from "@/components/SiteHeader";
 import FavoritesProvider from "@/components/FavoritesProvider";
+import MobileBottomNav from "@/components/MobileBottomNav";
+import MobileMoreMenu from "@/components/MobileMoreMenu";
+import MobileSearchOverlay from "@/components/MobileSearchOverlay";
+import MobileUiProvider from "@/components/MobileUiProvider";
 import SessionProvider from "@/components/SessionProvider";
 import SiteFooter from "@/components/SiteFooter";
 import { AdSense, Analytics } from "@/components/Analytics";
@@ -65,7 +69,12 @@ export default function RootLayout({
         <OrganizationJsonLd />
         <WebSiteJsonLd />
       </head>
-      <body className="flex min-h-screen flex-col">
+      {/* Bottom padding clears the fixed mobile bottom nav (~4.5rem of
+          content plus the safe-area inset it also pads itself by) so the
+          nav never covers the tail of the page — main content or the
+          footer, whichever renders last. Removed at md and up, where the
+          bottom nav itself is hidden. */}
+      <body className="flex min-h-screen flex-col pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">
         <a
           href="#main"
           className="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50 focus:rounded-lg focus:bg-brand-500 focus:px-4 focus:py-2 focus:font-semibold focus:text-base-950"
@@ -76,11 +85,16 @@ export default function RootLayout({
             sit inside the provider too. */}
         <SessionProvider>
           <FavoritesProvider>
-            <SiteHeader />
-            <main id="main" className="flex-1">
-              {children}
-            </main>
-            <SiteFooter />
+            <MobileUiProvider>
+              <SiteHeader />
+              <main id="main" className="flex-1">
+                {children}
+              </main>
+              <SiteFooter />
+              <MobileBottomNav />
+              <MobileSearchOverlay />
+              <MobileMoreMenu />
+            </MobileUiProvider>
           </FavoritesProvider>
 
           {/* Both render null unless their env var is set, so a deployment

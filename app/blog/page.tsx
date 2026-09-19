@@ -132,7 +132,7 @@ export default async function BlogIndexPage({
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
+    <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
       <BreadcrumbJsonLd
         items={[
           { name: "Home", url: absolute("/") },
@@ -141,10 +141,10 @@ export default async function BlogIndexPage({
       />
       <header className="max-w-3xl">
         <p className="font-mono text-sm text-brand-400">GetApkFree Blog</p>
-        <h1 className="mt-3 text-4xl font-extrabold tracking-tight text-balance sm:text-5xl">
+        <h1 className="mt-3 text-3xl font-extrabold tracking-tight text-balance sm:text-4xl lg:text-5xl">
           Tips, guides, and app recommendations
         </h1>
-        <p className="mt-4 text-lg leading-relaxed text-fg-muted">
+        <p className="mt-3 text-base leading-relaxed text-fg-muted sm:mt-4 sm:text-lg">
           What to install, what to avoid, and how to get the most out of
           open-source Android apps.
         </p>
@@ -178,12 +178,12 @@ export default async function BlogIndexPage({
         </div>
       ) : (
         <>
-          <p className="mt-8 text-sm text-fg-dim">
+          <p className="mt-6 text-sm text-fg-dim sm:mt-8">
             Showing {start + 1}–{start + posts.length} of {filtered.length} post
             {filtered.length === 1 ? "" : "s"}
           </p>
 
-          <div className="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-4 grid gap-5 sm:mt-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
             {posts.map((post) => (
               <BlogCard key={post.id} post={post} />
             ))}

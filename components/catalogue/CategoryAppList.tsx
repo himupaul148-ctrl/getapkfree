@@ -41,8 +41,8 @@ export default function CategoryAppList({
   }
 
   return (
-    <section className="mt-20">
-      <h2 className="text-2xl font-bold tracking-tight">
+    <section className="mt-12 sm:mt-20">
+      <h2 className="text-xl font-bold tracking-tight sm:text-2xl">
         All {category} apps
       </h2>
       <p className="mt-1 text-sm text-fg-muted">

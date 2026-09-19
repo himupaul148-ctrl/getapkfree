@@ -23,6 +23,10 @@ const siteHeaderSrc = readFileSync(
   fileURLToPath(new URL("../components/SiteHeader.tsx", import.meta.url)),
   "utf8",
 );
+const mobileSearchOverlaySrc = readFileSync(
+  fileURLToPath(new URL("../components/MobileSearchOverlay.tsx", import.meta.url)),
+  "utf8",
+);
 
 group("HeaderSearch — debouncing and stale-request protection", () => {
   test("debounces requests by exactly 250ms", () => {
@@ -135,12 +139,11 @@ group("HeaderSearch — no unsafe credentials", () => {
 });
 
 group("SiteHeader — wiring and preserved structure", () => {
-  test("renders HeaderSearch for both the desktop and mobile slots, with distinct idPrefix values", () => {
+  test("renders HeaderSearch once, for the desktop slot", () => {
     assert.match(siteHeaderSrc, /import HeaderSearch from "@\/components\/HeaderSearch";/);
     const occurrences = siteHeaderSrc.match(/<HeaderSearch/g) ?? [];
-    assert.equal(occurrences.length, 2);
+    assert.equal(occurrences.length, 1);
     assert.match(siteHeaderSrc, /idPrefix="header-desktop"/);
-    assert.match(siteHeaderSrc, /idPrefix="header-mobile"/);
   });
 
   test("preserves the logo, nav links, and admin bar", () => {
@@ -149,13 +152,39 @@ group("SiteHeader — wiring and preserved structure", () => {
     assert.match(siteHeaderSrc, /const NAV = \[/);
   });
 
-  test("preserves the desktop/mobile responsive split (hidden md:flex / md:hidden)", () => {
+  /**
+   * Redesign (mobile bottom nav): phones no longer get an always-visible
+   * inline search bar in the header — that role moved to the bottom nav's
+   * Search tab, which opens MobileSearchOverlay (still HeaderSearch
+   * underneath, just presented full-screen with autofocus). SiteHeader's
+   * own mobile affordance is now a compact icon that opens the same
+   * overlay, so there's exactly one mobile search experience, not two.
+   */
+  test("desktop search bar stays hidden flex-1 justify-center md:flex; mobile gets a search icon opening the shared overlay instead of an inline bar", () => {
     assert.match(siteHeaderSrc, /hidden flex-1 justify-center md:flex/);
-    assert.match(siteHeaderSrc, /border-t border-base-800 px-4 py-2 md:hidden/);
+    assert.doesNotMatch(siteHeaderSrc, /border-t border-base-800 px-4 py-2 md:hidden/);
+    assert.match(siteHeaderSrc, /import \{ useMobileUi \} from "@\/components\/MobileUiProvider";/);
+    assert.match(siteHeaderSrc, /const \{ openSearch \} = useMobileUi\(\);/);
+    assert.match(siteHeaderSrc, /onClick=\{openSearch\}/);
   });
 
   test("no longer defines its own submit handler or search state — that's HeaderSearch's job now", () => {
     assert.doesNotMatch(siteHeaderSrc, /function submit\(/);
     assert.doesNotMatch(siteHeaderSrc, /useState\(""\)/);
+  });
+});
+
+group("MobileSearchOverlay — reuses HeaderSearch as-is, no parallel search logic", () => {
+  test("renders HeaderSearch with its own idPrefix, autofocuses it, and closes on Escape", () => {
+    assert.match(mobileSearchOverlaySrc, /import HeaderSearch from "@\/components\/HeaderSearch";/);
+    assert.match(mobileSearchOverlaySrc, /<HeaderSearch idPrefix="mobile-overlay"/);
+    assert.match(mobileSearchOverlaySrc, /input\?\.focus\(\);/);
+    assert.match(mobileSearchOverlaySrc, /event\.key === "Escape"/);
+  });
+
+  test("only renders when the shared overlay state says 'search' — no independent open/close state of its own", () => {
+    assert.match(mobileSearchOverlaySrc, /import \{ useMobileUi \} from "@\/components\/MobileUiProvider";/);
+    assert.match(mobileSearchOverlaySrc, /const open = overlay === "search";/);
+    assert.match(mobileSearchOverlaySrc, /if \(!open\) return null;/);
   });
 });

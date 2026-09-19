@@ -159,7 +159,7 @@ export default async function HomePage({
   const listicle = categoryListicle(filters.category);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6">
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14">
       {filters.category && (
         <BreadcrumbJsonLd
           items={[
@@ -177,7 +177,7 @@ export default async function HomePage({
         <span className="inline-flex items-center gap-2 rounded-full border border-brand-500/30 bg-brand-500/10 px-3 py-1 text-xs font-medium text-brand-300">
           Free apps • Scanned or official
         </span>
-        <h1 className="mt-5 text-4xl font-extrabold tracking-tight text-balance sm:text-5xl lg:text-6xl">
+        <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-balance sm:mt-5 sm:text-4xl lg:text-5xl xl:text-6xl">
           {filters.category ? (
             <>
               {filters.category} Apps —{" "}
@@ -194,7 +194,7 @@ export default async function HomePage({
             </>
           )}
         </h1>
-        <p className="mt-5 text-lg leading-relaxed text-fg-muted">
+        <p className="mt-4 text-base leading-relaxed text-fg-muted sm:mt-5 sm:text-lg">
           {intro ??
             "Download legitimate APKs with confidence. F-Droid builds are versioned, malware-scanned by file hash, and published with their full changelog — everything else links straight to its official source."}
         </p>
@@ -220,33 +220,33 @@ export default async function HomePage({
 function HomeSkeleton() {
   return (
     <>
-      <section className="mt-16">
+      <section className="mt-10 sm:mt-16">
         <SectionHeadingSkeleton />
-        <div className="mt-6">
+        <div className="mt-5 sm:mt-6">
           <AppGridSkeleton
             count={5}
-            className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
+            className="grid gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 xl:grid-cols-5"
           />
         </div>
       </section>
 
-      <section className="mt-20">
+      <section className="mt-12 sm:mt-20">
         <SectionHeadingSkeleton />
-        <div className="mt-6">
+        <div className="mt-5 sm:mt-6">
           <CategoryGridSkeleton />
         </div>
       </section>
 
-      <section className="mt-20">
+      <section className="mt-12 sm:mt-20">
         <SectionHeadingSkeleton />
-        <div className="mt-6">
+        <div className="mt-5 sm:mt-6">
           <AppGridSkeleton count={6} />
         </div>
       </section>
 
-      <section className="mt-20">
+      <section className="mt-12 sm:mt-20">
         <SectionHeadingSkeleton />
-        <div className="mt-6">
+        <div className="mt-5 sm:mt-6">
           <ListSkeleton />
         </div>
       </section>

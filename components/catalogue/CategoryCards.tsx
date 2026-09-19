@@ -30,10 +30,10 @@ export default function CategoryCards({
   }
 
   return (
-    <section id="categories" className="mt-20">
+    <section id="categories" className="mt-12 sm:mt-20">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Browse by category</h2>
+          <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Browse by category</h2>
           <p className="mt-1 text-sm text-fg-muted">
             {active
               ? `Showing ${active}. Tap it again to clear.`
@@ -42,7 +42,7 @@ export default function CategoryCards({
         </div>
       </div>
 
-      <ul className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+      <ul className="mt-5 grid grid-cols-2 gap-3 sm:mt-6 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
         {CATEGORIES.map((name) => {
           const isActive = name === active;
           return (
@@ -51,7 +51,7 @@ export default function CategoryCards({
                 type="button"
                 onClick={() => choose(name)}
                 aria-pressed={isActive}
-                className={`group flex h-full w-full flex-col gap-3 rounded-2xl border p-5 text-left transition-colors ${
+                className={`group flex h-full w-full flex-col gap-2.5 rounded-2xl border p-4 text-left transition-colors sm:gap-3 sm:p-5 ${
                   isActive
                     ? "border-brand-500 bg-brand-500/10"
                     : "border-base-800 bg-base-900 hover:border-brand-500/50 hover:bg-base-850"
