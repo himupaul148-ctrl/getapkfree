@@ -65,6 +65,18 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {/* Google AdSense site verification snippet — exact code as provided
+            by Google, placed as early in <head> as possible per Google's own
+            guidance. Deliberately a plain <script> tag, not next/script: this
+            must appear as a literal tag in the server-rendered HTML <head>,
+            which next/script's afterInteractive strategy (used by the
+            existing, env-gated <AdSense /> below) does not guarantee — that
+            component only renders once NEXT_PUBLIC_ADSENSE_CLIENT is set. */}
+        <script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8955448631957200"
+          crossOrigin="anonymous"
+        />
         <ThemeScript />
         <OrganizationJsonLd />
         <WebSiteJsonLd />
