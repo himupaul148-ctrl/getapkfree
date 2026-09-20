@@ -3,6 +3,7 @@ import { unstable_cache } from "next/cache";
 import { supabase } from "@/lib/supabase/public";
 import { resolveQueryResult } from "@/lib/supabase/query-result";
 import { latestVersion } from "@/lib/format";
+import { hasPublishedVersion } from "@/lib/catalogue-published";
 import type { App, AppSummary, AppWithVersions, Version } from "@/lib/types";
 
 // Every apps column toSummary() reads, and no others — screenshots and
@@ -138,7 +139,22 @@ async function fetchPublishedVersions(appId: string): Promise<Version[]> {
 /** Per-request memoized the same way and for the same reason as getAppBySlug above. */
 export const getPublishedVersions = cache(fetchPublishedVersions);
 
-/** Other apps in the same category, most downloaded first. */
+/**
+ * Other apps in the same category, most downloaded first. Excludes any app
+ * with no currently published version — the same "published" signal
+ * getCatalogue() already filters the homepage catalogue on (see
+ * hasPublishedVersion in lib/catalogue-published.ts) — so an app taken down
+ * for a content-policy violation can never occupy one of the `limit`
+ * related-app slots just because it still has a download_count.
+ *
+ * Applied after the fetch, not as a query-level join filter: this reuses
+ * APP_SUMMARY_SELECT unchanged (lib/blog.ts's own getRelatedApps depends on
+ * that exact embed shape too), so an unpublished app can in principle still
+ * occupy one of the DB-side `limit` rows before being filtered out here,
+ * yielding fewer than `limit` results in the rare case a category has
+ * several unpublished apps ranked at the top by downloads. Acceptable
+ * trade-off for the smallest fix consistent with the existing query shape.
+ */
 export async function getRelatedApps(
   category: string | null,
   excludeId: string,
@@ -153,14 +169,23 @@ export async function getRelatedApps(
     .order("download_count", { ascending: false })
     .limit(limit)
     .returns<AppWithVersions[]>();
-  return (data ?? []).map(toSummary);
+  return (data ?? []).map(toSummary).filter(hasPublishedVersion);
 }
 
-/** Slugs of the most-downloaded apps, for build-time prerendering. */
+/**
+ * Slugs of the most-downloaded apps, for build-time prerendering. Only apps
+ * with at least one currently published version are eligible, via the same
+ * apps -> versions relationship RLS and search_apps() already gate on
+ * (`versions!inner` turns the embed into an existence filter on the parent
+ * row, not just on which child rows come back) — so an unpublished app is
+ * never selected for static generation merely because of a leftover
+ * download_count.
+ */
 export async function getPopularSlugs(limit = 50): Promise<string[]> {
   const { data } = await supabase
     .from("apps")
-    .select("slug")
+    .select("slug, versions!inner(published)")
+    .eq("versions.published", true)
     .order("download_count", { ascending: false })
     .limit(limit)
     .returns<{ slug: string }[]>();

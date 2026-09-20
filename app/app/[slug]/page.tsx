@@ -58,6 +58,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!app) return { title: "App not found", robots: { index: false } };
 
   const versions = await getPublishedVersions(app.id);
+  // No published build — never scanned/approved yet, or unpublished after
+  // the fact (e.g. for a content-policy violation) — means there is nothing
+  // public to show. 404 rather than rendering a thin placeholder page, so
+  // this is never crawlable or linkable as a normal app listing; see the
+  // matching guard in the page body below.
+  if (versions.length === 0) notFound();
+
   const latest = versions[0];
   // "Latest" is the placeholder an external listing gets when its source does
   // not publish a version number — "Signal APK Latest" reads like a typo.
@@ -84,12 +91,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title,
     description,
     alternates: { canonical: url },
-    // No published build means the page is just an icon, a name and a "come
-    // back later" message — nothing worth ranking. Still rendered normally
-    // for a visitor who lands here directly; only crawlers are asked to skip
-    // it, and only until a build is published (getPublishedVersions is what
-    // the page body itself already uses to decide whether to show a download
-    // button, so this reuses the exact same signal rather than a new one).
+    // `latest` is always defined here — the notFound() guard above already
+    // returns before this point for any app with no published build, so
+    // there is no "index: false" case left to reach.
     robots: latest ? undefined : { index: false, follow: true },
     openGraph: {
       type: "website",
@@ -116,6 +120,10 @@ export default async function AppDetailPage({ params }: Props) {
     getPublishedVersions(app.id),
     getRelatedApps(app.category, app.id, 4),
   ]);
+
+  // Same guard as generateMetadata above: no published build means nothing
+  // public to show, so this 404s rather than rendering the page.
+  if (versions.length === 0) notFound();
 
   const latest = versions[0];
   // Category editorial context, not build-specific — shown regardless of

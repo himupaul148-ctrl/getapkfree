@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import Prose from "@/components/Prose";
+import { CONTACT_EMAIL } from "@/lib/site-config";
 import { absolute } from "@/lib/seo";
 
 export const metadata: Metadata = {
@@ -65,10 +67,11 @@ export default function DmcaPage() {
 
       <h2>Contact route</h2>
       <p>
-        A dedicated takedown address is not yet configured for this deployment.
-        Until it is, use the details on the contact page. Note that this
-        installation currently hosts only fictional sample entries with
-        placeholder links and no real application binaries.
+        Send takedown notices to{" "}
+        <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>, or use the{" "}
+        <Link href="/contact">contact form</Link> and mark the subject as a
+        DMCA notice. This is the same address used for every other rights and
+        safety report on the site — there is no separate takedown address.
       </p>
     </Prose>
   );
