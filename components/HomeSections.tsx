@@ -1,14 +1,21 @@
 import Link from "next/link";
-import AppCard from "@/components/AppCard";
 import AppCarousel, { CAROUSEL_ITEM } from "@/components/AppCarousel";
+import BlogCard from "@/components/blog/BlogCard";
 import CatalogueSection from "@/components/catalogue/CatalogueSection";
 import CategoryAppList, {
   PAGE_SIZE as CATEGORY_PAGE_SIZE,
 } from "@/components/catalogue/CategoryAppList";
 import CategoryCards from "@/components/catalogue/CategoryCards";
 import FilterProvider from "@/components/catalogue/FilterProvider";
+import FeaturedAppCard from "@/components/FeaturedAppCard";
+import WhyGetApkFree from "@/components/WhyGetApkFree";
+import { getPublishedPosts, getPublishedPostsByCategory } from "@/lib/blog";
 import { getCatalogue } from "@/lib/catalogue";
-import { formatRelative, trendingScore } from "@/lib/format";
+// PREVIEW EXPERIMENT — Variant B early-preload investigation, not yet committed.
+import { alreadyKnownApps, deltaPreloadUrl } from "@/lib/catalogue-delta";
+import { trendingScore } from "@/lib/format";
+import { getBlogCategoryForAppCategory } from "@/lib/blog-app-category-mapping";
+import { isCategory } from "@/lib/category-content";
 import { CATEGORIES } from "@/lib/types";
 import type { Filters } from "@/components/catalogue/FilterProvider";
 import type { AppSummary } from "@/lib/types";
@@ -27,7 +34,31 @@ export default async function HomeSections({
       meaningless (and ignored) unless filters.category is set. */
   categoryPage: number;
 }) {
-  const { apps, error } = await getCatalogue();
+  // Phase 1 Task 7: the blog category this app category automatically maps
+  // to (lib/blog-app-category-mapping.ts), or undefined for an unmapped
+  // category (Multimedia, Internet, Education, Writing) or no active
+  // category at all. Resolved synchronously from `filters` alone, so it can
+  // join the same Promise.all below instead of creating a second round trip
+  // after the fact.
+  const categoryBlogCategory =
+    filters.category && isCategory(filters.category)
+      ? getBlogCategoryForAppCategory(filters.category)
+      : undefined;
+
+  // getPublishedPosts() throws on a genuine Supabase failure (see
+  // lib/supabase/query-result.ts) — caught here so a blog-side outage only
+  // drops the homepage's blog teaser, not the whole page (unlike getCatalogue,
+  // which reports its own error inline and is handled below). The category
+  // section behaves the same way for the same reason — and simply has
+  // nothing to fetch at all when the active category has no blog mapping.
+  const [{ apps, error }, posts, categoryRelatedPosts] = await Promise.all([
+    getCatalogue(),
+    getPublishedPosts().catch(() => []),
+    categoryBlogCategory
+      ? getPublishedPostsByCategory(categoryBlogCategory).catch(() => [])
+      : Promise.resolve([]),
+  ]);
+  const latestPosts = posts.slice(0, 3);
 
   if (error) {
     return (
@@ -108,6 +139,14 @@ export default async function HomeSections({
     }
   }
 
+  // PREVIEW EXPERIMENT — Variant B early-preload investigation, not yet
+  // committed. The preload() call itself lives in DeltaPreload (a separate,
+  // earlier Suspense sibling in app/page.tsx) — this only computes the same
+  // already-known subset so CatalogueSection can render it immediately
+  // instead of the full 272 while the delta request is in flight.
+  const catalogueInitialApps = alreadyKnownApps(apps);
+  const catalogueDeltaUrl = deltaPreloadUrl(apps);
+
   return (
     /* The category cards and the catalogue share one filter state, so a
        selection made in either place is reflected in both. Keyed on the
@@ -116,75 +155,101 @@ export default async function HomeSections({
       key={`${filters.search}|${filters.category}|${filters.android}|${filters.sort}`}
       initial={filters}
     >
-      {/* Sits above Trending so the editorial route is offered before the
-          reader falls into browsing the catalogue. Stacked on mobile (each
-          part on its own row) rather than wrapped inline — a badge, a
-          multi-line description and a trailing link sharing one flex-wrap
-          row read as cramped and misaligned below ~400px. */}
-      <section className="mt-10 sm:mt-16">
-        <Link
-          href="/blog"
-          className="group flex flex-col gap-3 rounded-2xl border border-azure-500/25 bg-azure-500/5 p-4 transition-colors hover:border-azure-500/50 sm:flex-row sm:items-center sm:gap-4 sm:p-5"
-        >
-          <span className="w-fit rounded-full bg-azure-500/15 px-2.5 py-0.5 text-xs font-medium text-azure-300">
-            New
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block font-semibold text-fg">
-              Not sure what to install?
-            </span>
-            <span className="mt-0.5 block text-sm text-fg-muted">
-              Read our guides — privacy picks, lightweight tools, and what to
-              avoid.
-            </span>
-          </span>
-          <span className="text-sm font-medium text-azure-300 transition-transform group-hover:translate-x-0.5">
-            Check the blog →
-          </span>
-        </Link>
-      </section>
+      {/* Popular Categories — leads the page body, right after the hero,
+          so browsing-by-category is the first thing offered below the
+          fold. */}
+      <CategoryCards counts={counts} />
 
       {exploreApps.length > 0 && (
         /* id kept as "trending": the header nav, the 404 page and any link
-           anyone has already shared point at #trending. */
+           anyone has already shared point at #trending — only the visible
+           heading below is renamed to "Featured Apps". */
         <section
           id="trending"
           aria-labelledby="explore-apps-heading"
           className="mt-12 sm:mt-16"
         >
-          <h2
-            id="explore-apps-heading"
-            className="text-xl font-bold tracking-tight sm:text-2xl"
-          >
-            Explore Apps
-          </h2>
-          <p className="mt-1 text-sm text-fg-muted">
-            Discover apps from the GetAPKFree catalogue
-          </p>
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2
+                id="explore-apps-heading"
+                className="text-xl font-bold tracking-tight sm:text-2xl"
+              >
+                Featured Apps
+              </h2>
+              <p className="mt-1 text-sm text-fg-muted">
+                Popular picks from the GetApkFree catalogue
+              </p>
+            </div>
+            <Link
+              href="/apps"
+              className="shrink-0 text-sm font-medium text-brand-400 hover:underline"
+            >
+              See all →
+            </Link>
+          </div>
 
           {/* Cards stay server-rendered — the carousel only wraps them. */}
-          <AppCarousel label="Explore apps">
+          <AppCarousel label="Featured apps">
             {exploreApps.map((app) => (
               <li key={app.id} className={CAROUSEL_ITEM}>
-                <AppCard app={app} />
+                <FeaturedAppCard app={app} />
               </li>
             ))}
           </AppCarousel>
         </section>
       )}
 
-      <CategoryCards counts={counts} />
+      {recentlyUpdated.length > 0 && (
+        <section id="recently-updated" className="mt-12 sm:mt-20">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Recently Updated</h2>
+              <p className="mt-1 text-sm text-fg-muted">
+                The ten most recent builds to clear scanning
+              </p>
+            </div>
+            <Link
+              href="/apps"
+              className="shrink-0 text-sm font-medium text-brand-400 hover:underline"
+            >
+              See all →
+            </Link>
+          </div>
 
-      <div className="mt-10 flex justify-end sm:mt-16">
+          <div className="mt-5 divide-y divide-base-800 overflow-hidden rounded-2xl border border-base-800 bg-base-900 sm:mt-6">
+            {recentlyUpdated.map((app) => (
+              <FeaturedAppCard key={app.id} app={app} dense />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Heading/CTA sits as CatalogueSection's own sibling, not a wrapper
+          around it — CatalogueSection renders its own <section id="catalogue">
+          with its own top margin, so nesting it here would double that gap.
+          Its internals are unchanged; this only adds the homepage's framing
+          above it. */}
+      <div className="mt-12 flex flex-wrap items-end justify-between gap-4 sm:mt-20">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Explore All Apps</h2>
+          <p className="mt-1 text-sm text-fg-muted">
+            Search, filter and browse the full catalogue
+          </p>
+        </div>
         <Link
           href="/apps"
-          className="text-sm font-medium text-brand-400 hover:underline"
+          className="shrink-0 rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-base-950 transition-colors hover:bg-brand-400"
         >
-          Browse all apps →
+          Browse All Apps →
         </Link>
       </div>
 
-      <CatalogueSection apps={apps} />
+      <CatalogueSection
+        apps={apps}
+        initialApps={catalogueInitialApps}
+        deltaUrl={catalogueDeltaUrl}
+      />
 
       {filters.category && categoryPageApps.length > 0 && (
         <CategoryAppList
@@ -195,38 +260,61 @@ export default async function HomeSections({
         />
       )}
 
-      {recentlyUpdated.length > 0 && (
-        <section id="recently-updated" className="mt-12 sm:mt-20">
-          <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Recently updated</h2>
-          <p className="mt-1 text-sm text-fg-muted">
-            The ten most recent builds to clear scanning.
-          </p>
+      {/* Phase 1 Task 7: category -> blog internal linking. Renders only
+          when the active app category has a Task 6 mapping AND that mapped
+          blog category actually has published posts — never an empty
+          heading or placeholder. Reuses BlogCard and the exact grid layout
+          "Latest from the Blog" below already uses, rather than a new
+          card design. */}
+      {filters.category && categoryRelatedPosts.length > 0 && (
+        <section className="mt-12 sm:mt-20">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold tracking-tight sm:text-2xl">
+                {filters.category} Guides &amp; Articles
+              </h2>
+              <p className="mt-1 text-sm text-fg-muted">
+                Related posts from the GetApkFree blog
+              </p>
+            </div>
+          </div>
 
-          <ul className="mt-6 divide-y divide-base-800 overflow-hidden rounded-2xl border border-base-800 bg-base-900">
-            {recentlyUpdated.map((app) => (
-              <li key={app.id}>
-                <a
-                  href={`/app/${app.slug}`}
-                  className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-4 transition-colors hover:bg-base-850"
-                >
-                  <span className="min-w-0 flex-1 truncate font-medium text-fg">
-                    {app.name}
-                  </span>
-                  <span className="hidden text-sm text-fg-dim sm:block">
-                    {app.category}
-                  </span>
-                  <span className="font-mono text-sm text-brand-400">
-                    v{app.latestVersion}
-                  </span>
-                  <span className="w-28 text-right text-sm text-fg-muted">
-                    {formatRelative(app.lastUpdated)}
-                  </span>
-                </a>
-              </li>
+          <div className="mt-5 grid gap-5 sm:mt-6 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
+            {categoryRelatedPosts.map((post) => (
+              <BlogCard key={post.id} post={post} />
             ))}
-          </ul>
+          </div>
         </section>
       )}
+
+      {latestPosts.length > 0 && (
+        <section className="mt-12 sm:mt-20">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold tracking-tight sm:text-2xl">
+                Latest from the Blog
+              </h2>
+              <p className="mt-1 text-sm text-fg-muted">
+                Guides and picks from the GetApkFree team
+              </p>
+            </div>
+            <Link
+              href="/blog"
+              className="shrink-0 text-sm font-medium text-brand-400 hover:underline"
+            >
+              See all →
+            </Link>
+          </div>
+
+          <div className="mt-5 grid gap-5 sm:mt-6 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
+            {latestPosts.map((post) => (
+              <BlogCard key={post.id} post={post} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      <WhyGetApkFree />
     </FilterProvider>
   );
 }

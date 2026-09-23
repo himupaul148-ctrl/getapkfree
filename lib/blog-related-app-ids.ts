@@ -11,7 +11,12 @@
  * which stays in the route and is covered by static-source tests there.
  */
 
-const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+/**
+ * Exported so other shape-only validators (e.g. target_app_id in
+ * lib/blog-validation.ts) can check the same UUID format without a second,
+ * independently-maintained regex.
+ */
+export const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 export type RelatedAppIdsValidation =
   | { valid: true; provided: boolean; ids: string[] }

@@ -4,14 +4,36 @@ import { isOptimisable } from "@/lib/images";
 import { formatDate } from "@/lib/format";
 import { CATEGORY_LABELS, type BlogCategory, type BlogSummary } from "@/lib/blog";
 
-export function CategoryBadge({ category }: { category: string }) {
-  const label =
-    CATEGORY_LABELS[category as BlogCategory] ?? category;
-  return (
-    <span className="inline-flex shrink-0 items-center rounded-full bg-azure-500/10 px-2.5 py-0.5 text-xs font-medium text-azure-300">
-      {label}
-    </span>
-  );
+const CATEGORY_BADGE_CLASSNAME =
+  "inline-flex shrink-0 items-center rounded-full bg-azure-500/10 px-2.5 py-0.5 text-xs font-medium text-azure-300";
+
+export function CategoryBadge({
+  category,
+  href,
+}: {
+  category: string;
+  /**
+   * Phase 1 Task 8: when given, renders as a real, crawlable link to that
+   * category's filtered blog listing instead of a plain, unclickable
+   * <span> — used only by the individual article page
+   * (components/blog/BlogArticleView.tsx), which is not itself wrapped in
+   * another link. BlogCard below never passes this: its whole card is
+   * already a <Link> to the post, and a second, nested <a> inside it would
+   * be invalid HTML.
+   */
+  href?: string;
+}) {
+  const label = CATEGORY_LABELS[category as BlogCategory] ?? category;
+
+  if (href) {
+    return (
+      <Link href={href} className={CATEGORY_BADGE_CLASSNAME}>
+        {label}
+      </Link>
+    );
+  }
+
+  return <span className={CATEGORY_BADGE_CLASSNAME}>{label}</span>;
 }
 
 export default function BlogCard({ post }: { post: BlogSummary }) {

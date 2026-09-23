@@ -42,14 +42,18 @@ group("homepage openGraph/twitter override", () => {
     assert.match(og, /siteName: SITE_NAME/);
     assert.match(og, /locale: "en_GB"/);
     assert.match(og, /url: SITE_URL/);
-    assert.match(og, /description: SITE_DESCRIPTION/);
+    // HOME_DESCRIPTION (clampDescription(SITE_DESCRIPTION)), not the raw
+    // SITE_DESCRIPTION constant directly — see the P1 homepage-description
+    // length fix, which introduced this constant precisely so the homepage's
+    // description is clamped the same way every other page's already is.
+    assert.match(og, /description: HOME_DESCRIPTION/);
   });
 
   test("twitter restates card/description alongside the new title", () => {
     const twMatch = src.match(/twitter: \{[\s\S]*?\n\s*\},/);
     assert.ok(twMatch, "twitter block not found");
     assert.match(twMatch![0], /card: "summary_large_image"/);
-    assert.match(twMatch![0], /description: SITE_DESCRIPTION/);
+    assert.match(twMatch![0], /description: HOME_DESCRIPTION/);
   });
 });
 
@@ -75,6 +79,22 @@ group("scope: category and search branches are untouched", () => {
   test("canonical and robots logic for the homepage branch are unchanged", () => {
     assert.match(src, /alternates: \{ canonical: absolute\("\/"\) \},/);
     assert.match(src, /robots: \{ index: !filtered, follow: true \},/);
+  });
+
+  test("category/search descriptions remain their own distinct values (categoryMetaDescription(category), a literal search-results sentence) — neither references SITE_DESCRIPTION/HOME_DESCRIPTION, so the P1 homepage-description length fix could not have touched them", () => {
+    // Bounded by "title: HOME_TITLE," (a unique, single-occurrence marker for
+    // where the homepage's own base branch begins) rather than a "return
+    // {\n    title: ..." literal containing an embedded "\n": this file's
+    // line endings are CRLF on this checkout, and a few pre-existing tests
+    // in this same file that slice on a literal "\n" boundary are already
+    // broken by that mismatch (confirmed pre-existing and unrelated to this
+    // task) — this test avoids the same trap rather than repeating it.
+    const categoryBlock = src.slice(src.indexOf("if (category) {"), src.indexOf("if (search) {"));
+    const searchBlock = src.slice(src.indexOf("if (search) {"), src.indexOf("title: HOME_TITLE,"));
+    assert.match(categoryBlock, /description: categoryMetaDescription\(category\),/);
+    assert.match(searchBlock, /description: `Search results for "\$\{search\}" in the GetApkFree catalogue\.`,/);
+    assert.doesNotMatch(categoryBlock, /SITE_DESCRIPTION|HOME_DESCRIPTION/);
+    assert.doesNotMatch(searchBlock, /SITE_DESCRIPTION|HOME_DESCRIPTION/);
   });
 });
 

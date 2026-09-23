@@ -25,6 +25,13 @@ const CATEGORIES = [
   "news",
 ];
 
+// Deliberately duplicated here rather than imported from
+// lib/blog-article-types.ts, for the exact reason CATEGORIES above already
+// is: this script must stay dependency-free so CI can run it without
+// `npm ci`. lib/blog-article-types.ts is the one canonical source everywhere
+// else in the application — keep both in sync if the allowed values change.
+const ARTICLE_TYPES = ["general", "app_related", "review_other"];
+
 /**
  * Frontmatter parser for exactly the documented format: `key: value`, with
  * optional quotes, and inline `[a, b]` arrays.
@@ -137,6 +144,31 @@ export function toPayload(parsed, filename) {
     problems.push('related_app_ids must be a list, e.g. ["id-1", "id-2"]');
   }
 
+  // article_type/target_app_id: three-type blog system. Both omitted-by-
+  // default, matching the API's own tri-state contract (lib/blog-validation.ts)
+  // — a routine content edit that never mentions either field must not reset
+  // an existing post's classification back to general/empty.
+  const articleType =
+    data.article_type === undefined
+      ? undefined
+      : String(data.article_type).trim().toLowerCase();
+  if (articleType !== undefined && !ARTICLE_TYPES.includes(articleType)) {
+    problems.push(
+      `article_type "${articleType}" is not one of: ${ARTICLE_TYPES.join(", ")}`,
+    );
+  }
+
+  const targetAppId =
+    data.target_app_id === undefined
+      ? undefined
+      : String(data.target_app_id).trim();
+  // Format only — whether a provided target_app_id actually exists is a
+  // live Supabase check the API route performs; this script has no database
+  // access of its own.
+  if (articleType === "app_related" && !targetAppId) {
+    problems.push("target_app_id is required when article_type is app_related");
+  }
+
   if (problems.length > 0) {
     throw new Error(`${filename}:\n  - ${problems.join("\n  - ")}`);
   }
@@ -159,6 +191,13 @@ export function toPayload(parsed, filename) {
   // admin editor when a routine content edit republishes the same slug.
   if (Array.isArray(related)) {
     payload.related_app_ids = related;
+  }
+
+  if (articleType !== undefined) {
+    payload.article_type = articleType;
+  }
+  if (targetAppId !== undefined) {
+    payload.target_app_id = targetAppId;
   }
 
   return payload;

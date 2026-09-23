@@ -3,7 +3,11 @@ import BlogEditor from "@/components/admin/BlogEditor";
 import BlogPostsTable from "@/components/admin/BlogPostsTable";
 import type { PickerApp } from "@/components/admin/RelatedAppPicker";
 import { createClient } from "@/lib/supabase/server";
-import { CATEGORY_LABELS, type BlogSummary } from "@/lib/blog";
+import {
+  getAdminBlogOverview,
+  getAdminBlogPosts,
+  type AdminBlogListParams,
+} from "@/lib/admin";
 import { formatCount, formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -19,23 +23,21 @@ type TabKey = (typeof TABS)[number]["key"];
 export default async function AdminBlogPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string } & AdminBlogListParams>;
 }) {
-  const { tab } = await searchParams;
-  const active: TabKey = TABS.some((t) => t.key === tab)
-    ? (tab as TabKey)
+  const params = await searchParams;
+  const active: TabKey = TABS.some((t) => t.key === params.tab)
+    ? (params.tab as TabKey)
     : "overview";
 
   const supabase = await createClient();
 
-  // The admin RLS policy exposes drafts here, unlike the public blog queries.
-  const [postsRes, appsRes] = await Promise.all([
-    supabase
-      .from("blog_posts")
-      .select(
-        "id, slug, title, description, featured_image_url, author, category, related_app_ids, published, view_count, created_at, updated_at",
-      )
-      .order("created_at", { ascending: false }),
+  // The list query only runs for the tab that actually shows it — Overview's
+  // stats/recent-posts come from their own small, targeted queries below
+  // (see getAdminBlogOverview), not from fetching every post's every column.
+  const [{ stats, recent }, listResult, appsRes] = await Promise.all([
+    getAdminBlogOverview(),
+    active === "posts" ? getAdminBlogPosts(params) : Promise.resolve(null),
     supabase
       .from("apps")
       .select("id, name, category")
@@ -43,24 +45,14 @@ export default async function AdminBlogPage({
       .returns<PickerApp[]>(),
   ]);
 
-  const posts: BlogSummary[] = (postsRes.data ?? []).map((row) => ({
-    ...row,
-    excerptText: row.description,
-    readMinutes: 0,
-  })) as BlogSummary[];
-
   const apps = appsRes.data ?? [];
-
-  const published = posts.filter((p) => p.published);
-  const totalViews = posts.reduce((sum, p) => sum + (p.view_count ?? 0), 0);
-  const mostViewed = [...posts].sort((a, b) => b.view_count - a.view_count)[0];
 
   return (
     <div>
       <h2 className="text-xl font-bold tracking-tight">Blog</h2>
       <p className="mt-1 text-sm text-fg-muted">
-        {posts.length} post{posts.length === 1 ? "" : "s"} — {published.length}{" "}
-        published, {posts.length - published.length} draft.
+        {stats.total} post{stats.total === 1 ? "" : "s"} — {stats.published}{" "}
+        published, {stats.total - stats.published} draft.
       </p>
 
       <nav className="mt-6 flex flex-wrap gap-2 border-b border-base-800 pb-3">
@@ -79,9 +71,9 @@ export default async function AdminBlogPage({
         ))}
       </nav>
 
-      {postsRes.error && (
+      {listResult?.error && (
         <p className="mt-4 rounded-xl border border-danger-500/40 bg-danger-500/10 p-3 text-sm text-danger-300">
-          {postsRes.error.message}
+          {listResult.error}
         </p>
       )}
 
@@ -89,20 +81,20 @@ export default async function AdminBlogPage({
         {active === "overview" && (
           <div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Stat label="Total posts" value={String(posts.length)} />
-              <Stat label="Published" value={String(published.length)} />
-              <Stat label="Total views" value={formatCount(totalViews)} />
+              <Stat label="Total posts" value={String(stats.total)} />
+              <Stat label="Published" value={String(stats.published)} />
+              <Stat label="Total views" value={formatCount(stats.totalViews)} />
               <Stat
                 label="Most viewed"
-                value={mostViewed ? formatCount(mostViewed.view_count) : "—"}
-                sub={mostViewed?.title}
+                value={stats.mostViewed ? formatCount(stats.mostViewed.view_count) : "—"}
+                sub={stats.mostViewed?.title}
               />
             </div>
 
             <h3 className="mt-10 text-sm font-semibold tracking-wider text-fg-dim uppercase">
               Recent posts
             </h3>
-            {posts.length === 0 ? (
+            {stats.total === 0 ? (
               <p className="mt-4 rounded-xl border border-base-800 bg-base-900 p-6 text-sm text-fg-muted">
                 Nothing written yet.{" "}
                 <Link href="/admin/blog?tab=write" className="text-brand-400 hover:underline">
@@ -112,7 +104,7 @@ export default async function AdminBlogPage({
               </p>
             ) : (
               <ul className="mt-4 space-y-2">
-                {posts.slice(0, 5).map((post) => (
+                {recent.map((post) => (
                   <li
                     key={post.id}
                     className="flex flex-wrap items-center gap-3 rounded-xl border border-base-800 bg-base-900 p-4"
@@ -147,7 +139,19 @@ export default async function AdminBlogPage({
 
         {active === "write" && <BlogEditor apps={apps} />}
 
-        {active === "posts" && <BlogPostsTable posts={posts} />}
+        {active === "posts" && listResult && (
+          <BlogPostsTable
+            posts={listResult.posts}
+            total={listResult.total}
+            page={listResult.page}
+            pageSize={listResult.pageSize}
+            totalPages={listResult.totalPages}
+            status={listResult.status}
+            category={listResult.category}
+            search={listResult.search}
+            sort={listResult.sort}
+          />
+        )}
       </div>
     </div>
   );

@@ -78,11 +78,22 @@ async function fetchCatalogue(): Promise<{ apps: AppSummary[]; error: string | n
  * dynamic route — it cannot be ISR. Caching the query itself gets most of the
  * benefit anyway: Supabase is hit once an hour rather than once per visitor.
  * Tagged so an admin edit can drop it immediately via revalidateTag.
+ *
+ * PREVIEW EXPERIMENT (Variant B early-preload investigation): wrapped in
+ * React's cache() on top of unstable_cache, the same pattern getAppBySlug/
+ * getPublishedVersions below already use. Proven empirically (instrumented
+ * call counter against a cold cache) that unstable_cache alone does NOT
+ * dedupe two concurrent callers within one request — DeltaPreload and
+ * HomeSections both awaiting getCatalogue() cost two real Supabase round
+ * trips without this. cache() closes that gap. See lib/catalogue.test.ts for
+ * why this can't be asserted as a call-count test under plain `node --test`.
  */
-export const getCatalogue = unstable_cache(fetchCatalogue, ["catalogue"], {
-  revalidate: 3600,
-  tags: ["catalogue"],
-});
+export const getCatalogue = cache(
+  unstable_cache(fetchCatalogue, ["catalogue"], {
+    revalidate: 3600,
+    tags: ["catalogue"],
+  }),
+);
 
 // Every column the App type declares, and no others — matches the apps
 // table's real columns exactly except manual_fields (admin-only provenance

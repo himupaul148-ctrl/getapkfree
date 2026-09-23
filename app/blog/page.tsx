@@ -5,18 +5,19 @@ import BlogFilters from "@/components/blog/BlogFilters";
 import BreadcrumbJsonLd from "@/components/BreadcrumbJsonLd";
 import {
   CATEGORY_LABELS,
-  POSTS_PER_PAGE,
-  getPublishedPosts,
-  normaliseBlogCategory,
-  normalisePage,
+  getPublishedPostsPaged,
   type BlogCategory,
-  type BlogSummary,
 } from "@/lib/blog";
-import { SITE_NAME, absolute } from "@/lib/seo";
+import { SITE_NAME, absolute, blogCategoryMetaDescription, clampDescription } from "@/lib/seo";
+
+const BASE_BLOG_TITLE = "GetApkFree Blog — App guides and recommendations";
+const BASE_BLOG_DESCRIPTION =
+  "Guides, tips and app recommendations from the GetApkFree team. Find the best open-source Android apps for privacy, productivity, gaming and more.";
 
 // searchParams drive the filters and the page number, which makes this route
-// dynamic. The query underneath is cached, so Supabase is still hit once an
-// hour rather than once a visitor.
+// dynamic. getPublishedPostsPaged() is not cached (see its own doc comment
+// in lib/blog.ts), but it is bounded — a request here is one small,
+// filtered, .range()-limited Supabase query, not a full-table scan.
 export const dynamic = "force-dynamic";
 
 /**
@@ -26,6 +27,15 @@ export const dynamic = "force-dynamic";
  * canonicalizing to page 1 — the latter was actively telling crawlers to
  * ignore every page beyond the first, which only gets worse as more posts
  * push older ones past page one.
+ *
+ * Title/description vary the same way the canonical URL already did before
+ * this fix: every category and every page beyond the first is a distinct,
+ * self-canonicalized, indexable URL (confirmed by `robots` below), so each
+ * needs its own title/description rather than the one generic pair every
+ * such URL used to share — the exact P1 SEO gap this fix closes. A search
+ * result (robots: noindex) intentionally keeps the plain base title/
+ * description: it is not meant to be a distinct indexed page in the first
+ * place, so there is nothing to differentiate it *for*.
  */
 export async function generateMetadata({
   searchParams,
@@ -34,41 +44,67 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const params = await searchParams;
   const query = (params.q ?? "").trim();
-  const category = normaliseBlogCategory(params.category);
 
   let canonicalPath = "/blog";
   let robots: Metadata["robots"] = { index: true, follow: true };
+  let title: string = BASE_BLOG_TITLE;
+  let description: string = BASE_BLOG_DESCRIPTION;
 
   if (query) {
     // Same treatment as the homepage's search results: useful to share, not
     // worth indexing as its own page — it canonicalises back to the plain
     // listing rather than to a query string full of one visitor's input.
+    // Title/description stay generic too, for the same reason: a search
+    // result is never the page these are meant to distinguish.
     robots = { index: false, follow: true };
   } else {
-    // Recompute the same clamped page number the page body renders (see
-    // BlogIndexPage below), so the canonical always points at what's
-    // actually there instead of a page number that got clamped down.
-    const all = await getPublishedPosts();
-    const filtered = category
-      ? all.filter((post) => post.category === category)
-      : all;
-    const totalPages = Math.max(1, Math.ceil(filtered.length / POSTS_PER_PAGE));
-    const page = Math.min(normalisePage(params.page), totalPages);
+    // Same bounded, database-level query the page body uses below — reads
+    // back the already-clamped page/category rather than recomputing the
+    // clamp over a separately fetched full array. `category` here is already
+    // validated against BLOG_CATEGORIES by getPublishedPostsPaged itself —
+    // "" for anything absent or invalid, the exact same validated value
+    // canonicalPath below already relies on, so an invalid ?category= falls
+    // back to the plain base title/description below exactly the way it
+    // already falls back to the plain canonical.
+    const { page, category } = await getPublishedPostsPaged({
+      category: params.category,
+      page: params.page,
+    });
 
     const qs = new URLSearchParams();
     if (category) qs.set("category", category);
     if (page > 1) qs.set("page", String(page));
     const suffix = qs.toString();
     canonicalPath = suffix ? `/blog?${suffix}` : "/blog";
+
+    const categoryLabel = category
+      ? CATEGORY_LABELS[category as BlogCategory]
+      : null;
+
+    if (categoryLabel) {
+      title = `${categoryLabel} — ${SITE_NAME} Blog`;
+      description = blogCategoryMetaDescription(category);
+    }
+
+    if (page > 1) {
+      // Prefixed, not appended: clampDescription trims from the right, so a
+      // long base/category description could otherwise swallow a suffix
+      // before a reader (or a search result snippet) ever sees it — a prefix
+      // always survives truncation, keeping every later page's description
+      // genuinely distinct from page 1's rather than merely differing in a
+      // clause that gets cut off first.
+      title = `${title} — Page ${page}`;
+      description = `Page ${page}: ${description}`;
+    }
   }
+
+  description = clampDescription(description);
 
   const url = absolute(canonicalPath);
 
   return {
-    // Same reason as the detail page: this is already the full title.
-    title: { absolute: "GetApkFree Blog — App guides and recommendations" },
-    description:
-      "Guides, tips and app recommendations from the GetApkFree team. Find the best open-source Android apps for privacy, productivity, gaming and more.",
+    title: { absolute: title },
+    description,
     alternates: {
       canonical: url,
       types: { "application/rss+xml": absolute("/blog/feed.xml") },
@@ -90,46 +126,39 @@ export async function generateMetadata({
   };
 }
 
-function matches(post: BlogSummary, needle: string): boolean {
-  return (
-    post.title.toLowerCase().includes(needle) ||
-    post.description.toLowerCase().includes(needle) ||
-    post.author.toLowerCase().includes(needle)
-  );
-}
-
 export default async function BlogIndexPage({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string; category?: string; page?: string }>;
 }) {
   const params = await searchParams;
-  const query = (params.q ?? "").trim();
-  const category = normaliseBlogCategory(params.category);
-  const needle = query.toLowerCase();
 
-  const all = await getPublishedPosts();
+  const { posts, page, pageSize, totalPages, total, category, search } =
+    await getPublishedPostsPaged({
+      category: params.category,
+      search: params.q,
+      page: params.page,
+    });
 
-  const filtered = all.filter((post) => {
-    if (needle && !matches(post, needle)) return false;
-    if (category && post.category !== category) return false;
-    return true;
-  });
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / POSTS_PER_PAGE));
-  // Clamp rather than 404: a stale link to ?page=9 should still show something.
-  const page = Math.min(normalisePage(params.page), totalPages);
-  const start = (page - 1) * POSTS_PER_PAGE;
-  const posts = filtered.slice(start, start + POSTS_PER_PAGE);
+  const start = (page - 1) * pageSize;
 
   function pageHref(target: number) {
     const qs = new URLSearchParams();
-    if (query) qs.set("q", query);
+    if (search) qs.set("q", search);
     if (category) qs.set("category", category);
     if (target > 1) qs.set("page", String(target));
     const s = qs.toString();
     return s ? `/blog?${s}` : "/blog";
   }
+
+  // Distinguishes "the blog has zero published posts at all" from "zero
+  // posts match this filter" without a second, separate unconditional
+  // count query: with no category/search active, `total` already *is* the
+  // unconditional published-post count, so the two cases coincide exactly.
+  // The one case this can't distinguish — an active filter on a blog that
+  // also happens to have zero posts of any kind — shows "No posts match…"
+  // rather than "No posts yet…", which reads correctly either way.
+  const blogIsEmpty = total === 0 && !category && !search;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
@@ -150,18 +179,18 @@ export default async function BlogIndexPage({
         </p>
       </header>
 
-      <BlogFilters initialQuery={query} initialCategory={category} />
+      <BlogFilters initialQuery={search} initialCategory={category} />
 
-      {all.length === 0 ? (
+      {blogIsEmpty ? (
         <p className="mt-12 rounded-2xl border border-base-800 bg-base-900 p-10 text-center text-fg-muted">
           No posts yet. Check back soon!
         </p>
-      ) : filtered.length === 0 ? (
+      ) : total === 0 ? (
         <div className="mt-12 rounded-2xl border border-base-800 bg-base-900 p-10 text-center">
           <p className="text-fg-muted">
             No posts match{" "}
-            {query && <span className="text-fg">“{query}”</span>}
-            {query && category && " in "}
+            {search && <span className="text-fg">“{search}”</span>}
+            {search && category && " in "}
             {category && (
               <span className="text-fg">
                 {CATEGORY_LABELS[category as BlogCategory]}
@@ -179,8 +208,8 @@ export default async function BlogIndexPage({
       ) : (
         <>
           <p className="mt-6 text-sm text-fg-dim sm:mt-8">
-            Showing {start + 1}–{start + posts.length} of {filtered.length} post
-            {filtered.length === 1 ? "" : "s"}
+            Showing {start + 1}–{start + posts.length} of {total} post
+            {total === 1 ? "" : "s"}
           </p>
 
           <div className="mt-4 grid gap-5 sm:mt-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">

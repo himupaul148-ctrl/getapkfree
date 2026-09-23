@@ -22,7 +22,18 @@
  * BlogEditor's onImageChange). buildUpdateRow only includes the column when
  * that's true, so an untouched session's payload never mentions it at all —
  * there is nothing in it to overwrite the current database value with.
+ *
+ * `articleType`/`targetAppId` (three-type blog system) follow the identical
+ * tri-state shape, for the identical reason: a post tagged app_related
+ * through the admin UI must not have that classification silently wiped
+ * back to general/null by an unrelated save whose caller never mentions
+ * either field. Both are optional on BlogPostFields so every call site that
+ * existed before article types were exposed in the editor's own UI keeps
+ * compiling and behaving exactly as it did — omitting them entirely is
+ * indistinguishable from `{ touched: false, ... }` below.
  */
+
+import { DEFAULT_ARTICLE_TYPE, type ArticleType } from "./blog-article-types.ts";
 
 export type BlogPostFields = {
   slug: string;
@@ -33,6 +44,8 @@ export type BlogPostFields = {
   category: string;
   relatedAppIds: string[];
   published: boolean;
+  articleType?: { touched: boolean; value: ArticleType };
+  targetAppId?: { touched: boolean; value: string | null };
 };
 
 function baseRow(fields: BlogPostFields): Record<string, unknown> {
@@ -45,6 +58,32 @@ function baseRow(fields: BlogPostFields): Record<string, unknown> {
     category: fields.category,
     related_app_ids: fields.relatedAppIds,
     published: fields.published,
+  };
+}
+
+/**
+ * Only present in the returned object when the caller marked them touched —
+ * omitted (not `undefined`; genuinely absent) otherwise, so an update built
+ * from this leaves both columns exactly as they already are in the
+ * database. Mirrors buildUpdateRow's own featured_image_url handling below.
+ */
+function updateTypeFields(fields: BlogPostFields): Record<string, unknown> {
+  return {
+    ...(fields.articleType?.touched ? { article_type: fields.articleType.value } : {}),
+    ...(fields.targetAppId?.touched ? { target_app_id: fields.targetAppId.value } : {}),
+  };
+}
+
+/**
+ * Always present on insert — there is no existing row to protect — falling
+ * back to the same defaults the database column and the shared publish
+ * validator use (DEFAULT_ARTICLE_TYPE / null) when the caller never
+ * mentions either field at all.
+ */
+function insertTypeFields(fields: BlogPostFields): Record<string, unknown> {
+  return {
+    article_type: fields.articleType?.value ?? DEFAULT_ARTICLE_TYPE,
+    target_app_id: fields.targetAppId?.value ?? null,
   };
 }
 
@@ -63,6 +102,7 @@ export function buildUpdateRow(
   return {
     ...baseRow(fields),
     ...(imageTouched ? { featured_image_url: image.trim() || null } : {}),
+    ...updateTypeFields(fields),
   };
 }
 
@@ -78,5 +118,6 @@ export function buildInsertRow(
   return {
     ...baseRow(fields),
     featured_image_url: image.trim() || null,
+    ...insertTypeFields(fields),
   };
 }

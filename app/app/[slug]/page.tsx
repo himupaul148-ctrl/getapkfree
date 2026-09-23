@@ -7,8 +7,10 @@ import AppIcon from "@/components/AppIcon";
 import BreadcrumbJsonLd from "@/components/BreadcrumbJsonLd";
 import FavoriteToggle from "@/components/FavoriteToggle";
 import DownloadButton from "@/components/DownloadButton";
+import { CategoryBadge } from "@/components/blog/BlogCard";
 import { downloadSourceLabel, hostOf, safetyMethodologyPath } from "@/lib/sources";
 import { categoryListicle } from "@/lib/category-content";
+import { getBlogPostsForApp, getPrimaryBlogPostsForApp } from "@/lib/blog";
 import PermissionsList from "@/components/PermissionsList";
 import RatingStars from "@/components/RatingStars";
 import ScanBadge from "@/components/ScanBadge";
@@ -116,10 +118,20 @@ export default async function AppDetailPage({ params }: Props) {
   const app = await getAppBySlug(slug);
   if (!app) notFound();
 
-  const [versions, related] = await Promise.all([
+  const [versions, related, primaryArticles, relatedArticlesRaw] = await Promise.all([
     getPublishedVersions(app.id),
     getRelatedApps(app.category, app.id, 4),
+    getPrimaryBlogPostsForApp(app.id),
+    getBlogPostsForApp(app.id),
   ]);
+
+  // Deduplicate: a post that is already this app's primary App Related
+  // article must never also appear in the generic Related Articles list —
+  // both queries can legitimately return the same post (an app_related
+  // article can also name its own target app in related_app_ids), so this
+  // is decided here, by id, rather than assumed from query design alone.
+  const primaryArticleIds = new Set(primaryArticles.map((article) => article.id));
+  const articles = relatedArticlesRaw.filter((article) => !primaryArticleIds.has(article.id));
 
   // Same guard as generateMetadata above: no published build means nothing
   // public to show, so this 404s rather than rendering the page.
@@ -407,6 +419,71 @@ export default async function AppDetailPage({ params }: Props) {
               <AppCard key={item.id} app={item} />
             ))}
           </div>
+        </section>
+      )}
+
+      {/* ---- Primary App Related articles: three-type blog system —
+          getPrimaryBlogPostsForApp, lib/blog.ts. Posts whose article_type is
+          app_related AND whose target_app_id is this exact app, i.e.
+          content specifically about this app rather than content that
+          merely mentions it. Deliberately its own, distinctly-headed
+          section rather than folded into "Related articles" below, so a
+          reader can tell "written about this app" apart from "mentions this
+          app" at a glance. Renders only when at least one exists; no
+          placeholder/empty state. ---- */}
+      {primaryArticles.length > 0 && (
+        <section className="mt-12 sm:mt-16">
+          <h2 className="text-xl font-bold tracking-tight sm:text-2xl">
+            Guides &amp; Articles About This App
+          </h2>
+          <p className="mt-1 text-sm text-fg-muted">
+            Written specifically about {app.name}.
+          </p>
+          <ul className="mt-5 space-y-3 sm:mt-6">
+            {primaryArticles.map((article) => (
+              <li key={article.id}>
+                <Link
+                  href={`/blog/${article.slug}`}
+                  className="block rounded-xl border border-base-800 bg-base-900 p-4 transition-colors hover:border-brand-500/50"
+                >
+                  <CategoryBadge category={article.category} />
+                  <p className="mt-2 font-medium text-fg">{article.title}</p>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* ---- Related articles: automatic App -> Blog reverse lookup
+          (getBlogPostsForApp, lib/blog.ts) — every published post whose own
+          related_app_ids names this app. Complements the Blog -> App
+          direction already shown in each post's own sidebar. Renders only
+          when a real published post names this app; no empty-state copy,
+          no placeholder cards. Excludes (by id) anything already shown in
+          the primary section above, via the `articles` dedup computed
+          alongside the data fetch. ---- */}
+      {articles.length > 0 && (
+        <section className="mt-12 sm:mt-16">
+          <h2 className="text-xl font-bold tracking-tight sm:text-2xl">
+            Related articles
+          </h2>
+          <p className="mt-1 text-sm text-fg-muted">
+            Guides and articles that mention {app.name}.
+          </p>
+          <ul className="mt-5 space-y-3 sm:mt-6">
+            {articles.map((article) => (
+              <li key={article.id}>
+                <Link
+                  href={`/blog/${article.slug}`}
+                  className="block rounded-xl border border-base-800 bg-base-900 p-4 transition-colors hover:border-brand-500/50"
+                >
+                  <CategoryBadge category={article.category} />
+                  <p className="mt-2 font-medium text-fg">{article.title}</p>
+                </Link>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
     </div>

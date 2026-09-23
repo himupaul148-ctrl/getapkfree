@@ -26,10 +26,30 @@ export default function HeaderSearch({
   idPrefix,
   placeholder,
   className = "",
+  size = "default",
+  scrollableResults = false,
 }: {
   idPrefix: string;
   placeholder: string;
   className?: string;
+  /** "large" is the homepage hero's own visual scale — same debounce/fetch/
+      suggestions logic throughout, just bigger padding, text and button so
+      it reads as the page's primary search rather than the header's. */
+  size?: "default" | "large";
+  /**
+   * Opt-in only — set by MobileSearchOverlay, whose own `fixed inset-0`
+   * full-screen container disables page scroll entirely while open
+   * (document.body.style.overflow = "hidden"), so a result list with no
+   * bound of its own has no scrollable ancestor at all: at a short/keyboard-
+   * reduced viewport, lower results (and the trailing "View all results"
+   * link, the list's own last item) can render past the bottom edge with no
+   * way to reach them. Every other instance of this component (the desktop
+   * header, the homepage hero search) renders inside a normally-scrolling
+   * page, where an overflowing dropdown was never actually unreachable —
+   * so this stays false there, deliberately, to leave their behavior
+   * byte-for-byte unchanged.
+   */
+  scrollableResults?: boolean;
 }) {
   const router = useRouter();
   const [term, setTerm] = useState("");
@@ -49,6 +69,21 @@ export default function HeaderSearch({
     document.addEventListener("mousedown", onPointerDown);
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, []);
+
+  // Keeps the arrow-key-highlighted option in view when the results list has
+  // its own bounded/scrollable height (scrollableResults) — without this, an
+  // ArrowDown past the visible area still updates `highlighted` correctly
+  // (ARIA/aria-activedescendant already reflects it) but the option itself
+  // stays scrolled out of sight. A harmless no-op everywhere the list isn't
+  // height-constrained (scrollIntoView on an element already fully in view
+  // does nothing), so this runs unconditionally rather than only when
+  // scrollableResults is set.
+  useEffect(() => {
+    if (highlighted < 0) return;
+    document
+      .getElementById(`${idPrefix}-search-option-${highlighted}`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [highlighted, idPrefix]);
 
   // Debounced, cancellable fetch. The cleanup function both clears a timer
   // that hasn't fired yet AND aborts an in-flight request from the
@@ -163,12 +198,13 @@ export default function HeaderSearch({
 
   const showDropdown = open && (isLoading || activeResults.length > 0 || term.trim().length >= MIN_QUERY_LENGTH);
   const listboxId = `${idPrefix}-search-suggestions`;
+  const large = size === "large";
 
   return (
     <div ref={containerRef} className={`relative ${className}`}>
       <form onSubmit={submit} role="search">
         <div className="relative">
-          <SearchGlyph />
+          <SearchGlyph large={large} />
           <input
             id={`${idPrefix}-search-input`}
             type="search"
@@ -187,11 +223,19 @@ export default function HeaderSearch({
             aria-expanded={showDropdown}
             aria-controls={listboxId}
             aria-activedescendant={highlighted >= 0 ? `${idPrefix}-search-option-${highlighted}` : undefined}
-            className="w-full rounded-full border border-base-700 bg-base-850 py-2 pr-20 pl-10 text-sm text-fg placeholder:text-fg-dim focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 focus:outline-none"
+            className={
+              large
+                ? "w-full rounded-2xl border-2 border-brand-500/25 bg-base-900 py-3.5 pr-[4.75rem] pl-11 text-base text-fg placeholder:text-fg-dim focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 focus:outline-none sm:pr-24 sm:pl-12"
+                : "w-full rounded-full border border-base-700 bg-base-850 py-2 pr-20 pl-10 text-sm text-fg placeholder:text-fg-dim focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 focus:outline-none"
+            }
           />
           <button
             type="submit"
-            className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded-full bg-brand-500 px-3 py-1 text-xs font-semibold text-base-950 transition-colors hover:bg-brand-400"
+            className={
+              large
+                ? "absolute top-1.5 right-1.5 bottom-1.5 rounded-xl bg-brand-500 px-3.5 text-sm font-semibold text-base-950 transition-colors hover:bg-brand-400 sm:px-5"
+                : "absolute top-1/2 right-1.5 -translate-y-1/2 rounded-full bg-brand-500 px-3 py-1 text-xs font-semibold text-base-950 transition-colors hover:bg-brand-400"
+            }
           >
             Search
           </button>
@@ -202,7 +246,11 @@ export default function HeaderSearch({
         <ul
           id={listboxId}
           role="listbox"
-          className="absolute top-full right-0 left-0 z-30 mt-2 overflow-hidden rounded-xl border border-base-700 bg-base-850 shadow-xl shadow-black/40"
+          className={`absolute top-full right-0 left-0 z-30 mt-2 rounded-xl border border-base-700 bg-base-850 shadow-xl shadow-black/40 ${
+            scrollableResults
+              ? "max-h-[calc(100dvh-6rem-env(safe-area-inset-bottom))] overflow-y-auto overscroll-contain"
+              : "overflow-hidden"
+          }`}
         >
           {isLoading && activeResults.length === 0 ? (
             <li className="px-3 py-2.5 text-sm text-fg-dim" aria-live="polite">
@@ -244,12 +292,13 @@ export default function HeaderSearch({
   );
 }
 
-function SearchGlyph() {
+function SearchGlyph({ large = false }: { large?: boolean }) {
+  const size = large ? 18 : 15;
   return (
     <svg
-      className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-fg-dim"
-      width="15"
-      height="15"
+      className={`pointer-events-none absolute top-1/2 -translate-y-1/2 text-fg-dim ${large ? "left-4" : "left-3.5"}`}
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       fill="none"
       aria-hidden="true"

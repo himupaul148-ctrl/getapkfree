@@ -93,8 +93,8 @@ group("getPostBySlug no longer discards the Supabase error", () => {
     assert.match(body, /return resolveQueryResult\(data, error, `getPostBySlug: Supabase query failed for slug "\$\{slug\}"`\)/);
   });
 
-  test("the query itself (select, filters, maybeSingle) is unchanged", () => {
-    assert.match(body, /\.select\(`\$\{LIST_COLUMNS\}, content`\)/);
+  test("the filters/maybeSingle portion of the query is unchanged; the select gained article_type/target_app_id, added by Phase 5's three-type blog system (see lib/blog-target-app-lookup.test.ts) — the LIST_COLUMNS/content core this fix touched is still there, just no longer the whole select list", () => {
+    assert.match(body, /\.select\(`\$\{LIST_COLUMNS\}, content, article_type, target_app_id`\)/);
     assert.match(body, /\.eq\("slug", slug\)/);
     assert.match(body, /\.eq\("published", true\)/);
     assert.match(body, /\.maybeSingle<BlogPost>\(\)/);
@@ -112,7 +112,7 @@ group("getPublishedSlugs no longer discards the Supabase error", () => {
     assert.match(body, /resolveQueryResult\(data, error, [^)]+\)\s*\?\?\s*\[\]/);
   });
 
-  test("the query itself (select, filter) is unchanged", () => {
+  test("the select/filter portion of the query is unchanged (ordering and a limit were added separately by Phase 1 Task C3, for bounded generateStaticParams — see lib/blog-static-params.test.ts)", () => {
     assert.match(body, /\.select\("slug"\)/);
     assert.match(body, /\.eq\("published", true\)/);
   });

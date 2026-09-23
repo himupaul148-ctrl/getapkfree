@@ -1,4 +1,5 @@
 import Link from "next/link";
+import AppCard from "@/components/AppCard";
 import type { AppSummary } from "@/lib/types";
 
 /**
@@ -49,25 +50,17 @@ export default function CategoryAppList({
         Every {category} app in the catalogue — page {page} of {totalPages}.
       </p>
 
-      <ul className="mt-6 divide-y divide-base-800 overflow-hidden rounded-2xl border border-base-800 bg-base-900">
+      {/* Same rich AppCard the interactive catalogue grid above already uses
+          (icon, description, source/safety badges, rating, favourite) —
+          reusing it here rather than a second, lighter card keeps one
+          consistent card design for the whole page and gives this
+          server-rendered, fully crawlable list the same visual quality as
+          the JS-driven grid, not a plainer fallback. */}
+      <div className="mt-5 grid grid-cols-1 gap-4 sm:mt-6 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3">
         {apps.map((app) => (
-          <li key={app.id}>
-            <Link
-              href={`/app/${app.slug}`}
-              className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3.5 transition-colors hover:bg-base-850"
-            >
-              <span className="min-w-0 flex-1 truncate font-medium text-fg">
-                {app.name}
-              </span>
-              {app.developer && (
-                <span className="truncate text-sm text-fg-dim">
-                  {app.developer}
-                </span>
-              )}
-            </Link>
-          </li>
+          <AppCard key={app.id} app={app} />
         ))}
-      </ul>
+      </div>
 
       {totalPages > 1 && (
         <nav

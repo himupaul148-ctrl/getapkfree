@@ -62,6 +62,14 @@ export default function RelatedAppPicker({
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            // This input sits inside BlogEditor's real <form>; Enter here
+            // would otherwise submit it and publish the post. There's no
+            // highlighted-match state to select on Enter (unlike
+            // HeaderSearch's combobox), so this only swallows the
+            // keystroke — it doesn't pick anything.
+            if (e.key === "Enter") e.preventDefault();
+          }}
           placeholder={
             selected.length >= max
               ? `${max} selected — remove one to add another`

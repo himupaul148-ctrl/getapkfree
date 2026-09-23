@@ -177,9 +177,18 @@ group("SiteHeader — wiring and preserved structure", () => {
 group("MobileSearchOverlay — reuses HeaderSearch as-is, no parallel search logic", () => {
   test("renders HeaderSearch with its own idPrefix, autofocuses it, and closes on Escape", () => {
     assert.match(mobileSearchOverlaySrc, /import HeaderSearch from "@\/components\/HeaderSearch";/);
-    assert.match(mobileSearchOverlaySrc, /<HeaderSearch idPrefix="mobile-overlay"/);
+    // Multi-line JSX since the P1 mobile-search-scroll fix added a third
+    // prop (scrollableResults) — see the "opts into..." test below.
+    assert.match(mobileSearchOverlaySrc, /<HeaderSearch\s*\n\s*idPrefix="mobile-overlay"/);
     assert.match(mobileSearchOverlaySrc, /input\?\.focus\(\);/);
     assert.match(mobileSearchOverlaySrc, /event\.key === "Escape"/);
+  });
+
+  test("opts into HeaderSearch's scrollableResults mode — the P1 fix for the suggestions list having no scrollable ancestor inside this overlay's fixed, body-scroll-locked container", () => {
+    assert.match(
+      mobileSearchOverlaySrc,
+      /<HeaderSearch\s*\n\s*idPrefix="mobile-overlay"\s*\n\s*placeholder="Search apps, packages, developers…"\s*\n\s*scrollableResults\s*\n\s*\/>/,
+    );
   });
 
   test("only renders when the shared overlay state says 'search' — no independent open/close state of its own", () => {

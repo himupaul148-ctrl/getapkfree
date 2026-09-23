@@ -66,10 +66,10 @@ group("AppDetailPage (the page body) — 404s for an app with no published versi
     assert.ok(guardIndex < latestIndex, "expected the notFound() guard to run before `latest` is read");
   });
 
-  test("versions and related apps are still fetched in parallel, unchanged", () => {
+  test("versions, related apps, primary app-related articles, and generic related articles are still fetched in parallel (Task 4 added the third fetch; the App-Relationship-Layer task added the fourth alongside it)", () => {
     assert.match(
       body,
-      /const \[versions, related\] = await Promise\.all\(\[\s*getPublishedVersions\(app\.id\),\s*getRelatedApps\(app\.category, app\.id, 4\),\s*\]\);/,
+      /const \[versions, related, primaryArticles, relatedArticlesRaw\] = await Promise\.all\(\[\s*getPublishedVersions\(app\.id\),\s*getRelatedApps\(app\.category, app\.id, 4\),\s*getPrimaryBlogPostsForApp\(app\.id\),\s*getBlogPostsForApp\(app\.id\),\s*\]\);/,
     );
   });
 });

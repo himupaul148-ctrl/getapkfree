@@ -1,28 +1,22 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AppCard from "@/components/AppCard";
 import FilterControls from "@/components/catalogue/FilterControls";
 import { useFilters } from "@/components/catalogue/FilterProvider";
-import { androidLevel, trendingScore } from "@/lib/format";
+// PREVIEW EXPERIMENT (Variant B early-preload investigation, not yet
+// committed): filter/sort/merge logic moved into lib/catalogue-filter.ts and
+// lib/catalogue-delta.ts, unchanged, so it can be given real behavioral
+// tests against the actual dataset instead of only living inline here.
+import { mergeCatalogueDelta } from "@/lib/catalogue-delta";
+import { filterAndSortCatalogue, matchesQuery } from "@/lib/catalogue-filter";
 import { track } from "@/lib/gtag";
 import { clearVisible, readVisible, writeVisible } from "@/lib/restore-count";
 import { CATEGORIES } from "@/lib/types";
 import type { AppSummary } from "@/lib/types";
 
 const MAX_SUGGESTIONS = 6;
-
-/** Name, description and package name, plus developer and category. */
-function matchesQuery(app: AppSummary, needle: string): boolean {
-  return (
-    app.name.toLowerCase().includes(needle) ||
-    (app.description?.toLowerCase().includes(needle) ?? false) ||
-    (app.packageName?.toLowerCase().includes(needle) ?? false) ||
-    (app.developer?.toLowerCase().includes(needle) ?? false) ||
-    (app.category?.toLowerCase().includes(needle) ?? false)
-  );
-}
 
 /**
  * Cards rendered per page. Filtering still runs over the whole catalogue — only
@@ -31,7 +25,20 @@ function matchesQuery(app: AppSummary, needle: string): boolean {
  */
 const PAGE_SIZE = 24;
 
-export default function CatalogueSection({ apps }: { apps: AppSummary[] }) {
+export default function CatalogueSection({
+  apps,
+  initialApps,
+  deltaUrl,
+}: {
+  apps: AppSummary[];
+  /** PREVIEW EXPERIMENT (Variant B early-preload investigation, not yet
+      committed): the already-known subset to render before the delta
+      arrives. Omitted = delta loading disabled, `apps` is the full
+      catalogue as today. */
+  initialApps?: AppSummary[];
+  /** PREVIEW EXPERIMENT: the exact URL preload() hints at; fetched here on mount. */
+  deltaUrl?: string;
+}) {
   const router = useRouter();
   const {
     search,
@@ -55,17 +62,60 @@ export default function CatalogueSection({ apps }: { apps: AppSummary[] }) {
   const [visible, setVisible] = useState(() => readVisible(PAGE_SIZE));
   const searchRef = useRef<HTMLDivElement>(null);
 
+  // PREVIEW EXPERIMENT (Variant B early-preload investigation, not yet committed).
+  const deltaEnabled = Boolean(initialApps && deltaUrl);
+  const [allApps, setAllApps] = useState<AppSummary[]>(
+    deltaEnabled ? (initialApps as AppSummary[]) : apps,
+  );
+  const [deltaState, setDeltaState] = useState<"idle" | "loading" | "ready" | "error">(
+    deltaEnabled ? "loading" : "idle",
+  );
+
+  const runDeltaFetch = useCallback(() => {
+    if (!deltaUrl) return;
+    fetch(deltaUrl)
+      .then((res) => {
+        if (!res.ok) throw new Error(`delta fetch failed: ${res.status}`);
+        return res.json() as Promise<{ apps: AppSummary[] }>;
+      })
+      .then(({ apps: deltaApps }) => {
+        setAllApps((current) => mergeCatalogueDelta(current, deltaApps));
+        setDeltaState("ready");
+        if (typeof performance !== "undefined") {
+          performance.mark("catalogue-ready");
+        }
+      })
+      .catch(() => setDeltaState("error"));
+  }, [deltaUrl]);
+
+  // Retry re-arms the loading state explicitly; the initial mount fetch
+  // doesn't need to (deltaState already starts "loading" whenever delta is
+  // enabled — see the useState initialiser above), which keeps this effect
+  // from calling setState synchronously on mount.
+  const fetchDelta = useCallback(() => {
+    setDeltaState("loading");
+    runDeltaFetch();
+  }, [runDeltaFetch]);
+
+  useEffect(() => {
+    if (deltaEnabled) runDeltaFetch();
+    // Fires once on mount only — deltaUrl is stable for the life of this page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const effectiveApps = deltaEnabled ? allApps : apps;
+
   // Desktop sidebar's category list — counts every category regardless of
   // which filters are currently active, same as CategoryCards on the
   // homepage, so a count never appears to shrink just because another
   // filter is also selected.
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const app of apps) {
+    for (const app of effectiveApps) {
       if (app.category) counts[app.category] = (counts[app.category] ?? 0) + 1;
     }
     return counts;
-  }, [apps]);
+  }, [effectiveApps]);
 
   useEffect(() => {
     function onPointerDown(event: MouseEvent) {
@@ -97,49 +147,17 @@ export default function CatalogueSection({ apps }: { apps: AppSummary[] }) {
   const suggestions = useMemo(() => {
     if (!needle) return [];
     // Names first: someone typing a name wants that app, not a description hit.
-    const byName = apps.filter((app) => app.name.toLowerCase().includes(needle));
-    const rest = apps.filter(
+    const byName = effectiveApps.filter((app) => app.name.toLowerCase().includes(needle));
+    const rest = effectiveApps.filter(
       (app) => !app.name.toLowerCase().includes(needle) && matchesQuery(app, needle),
     );
     return [...byName, ...rest].slice(0, MAX_SUGGESTIONS);
-  }, [apps, needle]);
+  }, [effectiveApps, needle]);
 
-  const results = useMemo(() => {
-    const deviceLevel = androidLevel(android || null);
-    const filtered = apps.filter((app) => {
-      if (needle && !matchesQuery(app, needle)) return false;
-      if (category && app.category !== category) return false;
-      if (source !== "all" && app.sourceType !== source) return false;
-      // "Android X+" is the device you have — show what will install on it.
-      if (deviceLevel && androidLevel(app.minAndroid) > deviceLevel) return false;
-      return true;
-    });
-
-    const sorted = [...filtered];
-    switch (sort) {
-      case "downloads":
-        sorted.sort((a, b) => b.downloadCount - a.downloadCount);
-        break;
-      case "newest":
-        sorted.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-        break;
-      case "rating":
-        sorted.sort(
-          (a, b) => (b.rating ?? 0) - (a.rating ?? 0) || b.ratingCount - a.ratingCount,
-        );
-        break;
-      case "updated":
-        sorted.sort((a, b) => (b.lastUpdated ?? "").localeCompare(a.lastUpdated ?? ""));
-        break;
-      default:
-        sorted.sort(
-          (a, b) =>
-            trendingScore(b.downloadCount, b.lastUpdated) -
-            trendingScore(a.downloadCount, a.lastUpdated),
-        );
-    }
-    return sorted;
-  }, [apps, needle, category, android, sort, source]);
+  const results = useMemo(
+    () => filterAndSortCatalogue(effectiveApps, { search, category, android, source, sort }),
+    [effectiveApps, search, category, android, sort, source],
+  );
 
   /*
    * A new filter means a new result set, so the remembered count no longer
@@ -225,7 +243,7 @@ export default function CatalogueSection({ apps }: { apps: AppSummary[] }) {
                 }`}
               >
                 All Apps
-                <span className="text-xs text-fg-dim">{apps.length}</span>
+                <span className="text-xs text-fg-dim">{effectiveApps.length}</span>
               </button>
             </li>
             {CATEGORIES.map((name) => (
@@ -261,9 +279,21 @@ export default function CatalogueSection({ apps }: { apps: AppSummary[] }) {
               <h2 className="text-xl font-bold tracking-tight sm:text-2xl lg:hidden">All apps</h2>
               <p className="mt-1 text-sm text-fg-muted" aria-live="polite">
                 Showing {results.length} app{results.length === 1 ? "" : "s"}
-                {isDefault ? "" : ` of ${apps.length}`}
+                {isDefault ? "" : ` of ${effectiveApps.length}`}
                 {category && ` in ${category}`}
               </p>
+              {/* PREVIEW EXPERIMENT (Variant B early-preload investigation, not yet committed). */}
+              {deltaState === "loading" && (
+                <p className="mt-1 text-xs text-fg-dim">Loading full catalogue…</p>
+              )}
+              {deltaState === "error" && (
+                <p className="mt-1 text-xs text-red-400">
+                  Some apps failed to load.{" "}
+                  <button type="button" onClick={fetchDelta} className="underline">
+                    Retry
+                  </button>
+                </p>
+              )}
             </div>
             {!isDefault && (
               <button

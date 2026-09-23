@@ -13,8 +13,15 @@ import OrganizationJsonLd from "@/components/OrganizationJsonLd";
 import PageViewTracker from "@/components/PageViewTracker";
 import ThemeScript from "@/components/ThemeScript";
 import WebSiteJsonLd from "@/components/WebSiteJsonLd";
-import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/seo";
+import { clampDescription, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/seo";
 import "./globals.css";
+
+// SITE_DESCRIPTION is already well under clampDescription's own max (see its
+// doc comment in lib/seo.ts) — wrapped here anyway so this sitewide default
+// follows the same safety-net convention every other page's description in
+// this codebase already does, rather than trusting the constant to stay
+// short forever.
+const DEFAULT_DESCRIPTION = clampDescription(SITE_DESCRIPTION);
 
 export const metadata: Metadata = {
   // metadataBase lets every page use relative OG image paths and still emit
@@ -24,7 +31,7 @@ export const metadata: Metadata = {
     default: "GetApkFree — Free, Open-Source Android APK Downloads",
     template: "%s | " + SITE_NAME,
   },
-  description: SITE_DESCRIPTION,
+  description: DEFAULT_DESCRIPTION,
   applicationName: SITE_NAME,
   keywords: [
     "APK download",
@@ -39,12 +46,12 @@ export const metadata: Metadata = {
     locale: "en_GB",
     url: SITE_URL,
     title: "GetApkFree — Free, Open-Source Android APK Downloads",
-    description: SITE_DESCRIPTION,
+    description: DEFAULT_DESCRIPTION,
   },
   twitter: {
     card: "summary_large_image",
     title: "GetApkFree — Free, Open-Source Android APK Downloads",
-    description: SITE_DESCRIPTION,
+    description: DEFAULT_DESCRIPTION,
   },
   robots: {
     index: true,

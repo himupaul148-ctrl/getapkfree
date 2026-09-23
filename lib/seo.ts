@@ -15,8 +15,20 @@ export const SITE_URL = (
 
 export const SITE_NAME = "GetApkFree";
 
+/**
+ * The sitewide/homepage default description — feeds the root layout's
+ * fallback <meta name="description">/og:description/twitter:description
+ * (app/layout.tsx) and the homepage's own (app/page.tsx), both of which wrap
+ * it in clampDescription() before use, same as every other page's
+ * description in this codebase. Kept naturally under clampDescription's
+ * default 160-character max (currently well under, at 137) rather than
+ * relying on that wrap to silently truncate it: a right-truncated ellipsis
+ * is an acceptable fallback for content nobody wrote to length, not the
+ * intended shape for the site's own primary description, which is short
+ * enough by design to never need it.
+ */
 export const SITE_DESCRIPTION =
-  "Download free, open-source Android APKs with confidence. F-Droid builds are versioned, malware-scanned by file hash, and published with their full changelog — everything else links straight to its official source.";
+  "Free, open-source Android APKs. F-Droid builds are versioned and malware-scanned — everything else links straight to its official source.";
 
 /** Absolute URL for a site-relative path. */
 export function absolute(path: string): string {
@@ -62,6 +74,43 @@ export function appDescriptionSuffix(sourceType: SourceType): string {
  */
 export function categoryMetaDescription(category: string): string {
   return `Browse free, open-source Android ${category.toLowerCase()} apps. F-Droid builds are malware-scanned by file hash; official-source apps link straight to their publisher.`;
+}
+
+/**
+ * A blog category page's meta description — one distinct, natural sentence
+ * per category rather than a single reused template. A template risks the
+ * one collision this file's blog copy already has to watch for: "guides" is
+ * both a blog category (lib/blog-categories.ts) and the generic word the
+ * blog listing's own base description already uses for its content ("Guides,
+ * tips and app recommendations..." — see app/blog/page.tsx), so a template
+ * like "${category} guides..." would read as "Guides guides..." for that one
+ * category. Bespoke copy per category sidesteps that entirely.
+ *
+ * Takes a plain string, not BlogCategory, matching categoryMetaDescription's
+ * own convention above: the caller (app/blog/page.tsx) already validates the
+ * category against BLOG_CATEGORIES via getPublishedPostsPaged's internal
+ * normaliseBlogCategory() before this is ever invoked, so the fallback below
+ * is defensive only — reachable in practice only if that upstream validation
+ * is ever removed.
+ */
+export function blogCategoryMetaDescription(category: string): string {
+  const descriptions: Record<string, string> = {
+    privacy:
+      "Guides and recommendations on Android privacy and security — open-source apps, safer defaults, and what your permissions really mean.",
+    productivity:
+      "Guides and recommendations for staying productive on Android — open-source task managers, note apps, and workflow tools.",
+    gaming:
+      "Guides and recommendations for open-source and free Android games, tested by the GetApkFree team.",
+    tools:
+      "Guides and recommendations for open-source Android utilities — system tools, file managers, and more.",
+    guides:
+      "Step-by-step Android guides from the GetApkFree team — installing APKs, checking versions, and everyday troubleshooting.",
+    news: "The latest open-source Android app news, releases, and updates from the GetApkFree team.",
+  };
+  return (
+    descriptions[category] ??
+    "Guides, tips and app recommendations from the GetApkFree team."
+  );
 }
 
 function joinWithOxfordComma(items: readonly string[]): string {

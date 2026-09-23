@@ -2,56 +2,106 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatDate, formatCount } from "@/lib/format";
 import { BLOG_CATEGORIES, CATEGORY_LABELS, type BlogSummary } from "@/lib/blog";
+import { buildPreviewHref } from "@/lib/blog-preview";
+import type { AdminBlogSort, AdminBlogStatusFilter } from "@/lib/admin";
 
-type Sort = "newest" | "title" | "views";
-
-export default function BlogPostsTable({ posts }: { posts: BlogSummary[] }) {
+export default function BlogPostsTable({
+  posts,
+  total,
+  page,
+  pageSize,
+  totalPages,
+  status,
+  category,
+  search,
+  sort,
+}: {
+  posts: BlogSummary[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  status: AdminBlogStatusFilter;
+  category: string;
+  search: string;
+  sort: AdminBlogSort;
+}) {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<Sort>("newest");
-  /*
-   * Seeded from ?status= so the admin bar's "3 drafts" chip lands here with
-   * the filter already applied, rather than dropping the admin into an
-   * unfiltered table they then have to narrow by hand.
-   */
-  const params = useSearchParams();
-  const initialStatus = params.get("status");
-  const [status, setStatus] = useState<"all" | "published" | "draft">(
-    initialStatus === "draft" || initialStatus === "published"
-      ? initialStatus
-      : "all",
-  );
-  const [category, setCategory] = useState("");
+  const [query, setQuery] = useState(search);
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string[] | null>(null);
 
-  const rows = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    const filtered = posts.filter((post) => {
-      if (needle && !post.title.toLowerCase().includes(needle)) return false;
-      if (status === "published" && !post.published) return false;
-      if (status === "draft" && post.published) return false;
-      if (category && post.category !== category) return false;
-      return true;
-    });
+  /*
+   * Keep the search box honest across back/forward navigation: this
+   * component survives that navigation (Next re-renders it with new props
+   * rather than remounting it), so `query` would otherwise still show
+   * whatever was last typed. Same "adjust state during render" pattern as
+   * components/blog/BlogFilters.tsx.
+   */
+  const [prevSearch, setPrevSearch] = useState(search);
+  if (search !== prevSearch) {
+    setPrevSearch(search);
+    setQuery(search);
+  }
 
-    const sorted = [...filtered];
-    if (sort === "title") sorted.sort((a, b) => a.title.localeCompare(b.title));
-    else if (sort === "views")
-      sorted.sort((a, b) => b.view_count - a.view_count);
-    else sorted.sort((a, b) => b.created_at.localeCompare(a.created_at));
-    return sorted;
-  }, [posts, query, status, category, sort]);
+  /*
+   * Filtering, sorting and pagination now all live in the URL and drive the
+   * server-side query in lib/admin.ts's getAdminBlogPosts — this pushes a
+   * new URL rather than filtering `posts` in place, the same push/replace
+   * pattern components/blog/BlogFilters.tsx already uses for the public
+   * listing. Changing any filter resets back to page 1; only the Prev/Next
+   * controls below set an explicit page.
+   */
+  function go(
+    next: Partial<{
+      q: string;
+      status: AdminBlogStatusFilter;
+      category: string;
+      sort: AdminBlogSort;
+      page: number;
+    }>,
+    mode: "push" | "replace",
+  ) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", "posts");
+
+    const nextQuery = next.q ?? query;
+    const nextStatus = next.status ?? status;
+    const nextCategory = next.category ?? category;
+    const nextSort = next.sort ?? sort;
+    const nextPage = next.page ?? 1;
+
+    if (nextQuery.trim()) params.set("q", nextQuery.trim());
+    else params.delete("q");
+
+    if (nextStatus !== "all") params.set("status", nextStatus);
+    else params.delete("status");
+
+    if (nextCategory) params.set("category", nextCategory);
+    else params.delete("category");
+
+    if (nextSort !== "newest") params.set("sort", nextSort);
+    else params.delete("sort");
+
+    if (nextPage > 1) params.set("page", String(nextPage));
+    else params.delete("page");
+
+    const qs = params.toString();
+    const url = qs ? `/admin/blog?${qs}` : "/admin/blog";
+    if (mode === "push") router.push(url);
+    else router.replace(url);
+  }
 
   const allShownSelected =
-    rows.length > 0 && rows.every((r) => selected.includes(r.id));
+    posts.length > 0 && posts.every((r) => selected.includes(r.id));
 
   async function run(
     ids: string[],
@@ -109,13 +159,16 @@ export default function BlogPostsTable({ posts }: { posts: BlogSummary[] }) {
         <input
           type="search"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            go({ q: e.target.value }, "replace");
+          }}
           placeholder="Search titles…"
           className="min-w-48 flex-1 rounded-xl border border-base-700 bg-base-950 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500"
         />
         <select
           value={status}
-          onChange={(e) => setStatus(e.target.value as typeof status)}
+          onChange={(e) => go({ status: e.target.value as AdminBlogStatusFilter }, "push")}
           aria-label="Filter by status"
           className="rounded-xl border border-base-700 bg-base-950 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500"
         >
@@ -125,7 +178,7 @@ export default function BlogPostsTable({ posts }: { posts: BlogSummary[] }) {
         </select>
         <select
           value={category}
-          onChange={(e) => setCategory(e.target.value)}
+          onChange={(e) => go({ category: e.target.value }, "push")}
           aria-label="Filter by category"
           className="rounded-xl border border-base-700 bg-base-950 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500"
         >
@@ -138,7 +191,7 @@ export default function BlogPostsTable({ posts }: { posts: BlogSummary[] }) {
         </select>
         <select
           value={sort}
-          onChange={(e) => setSort(e.target.value as Sort)}
+          onChange={(e) => go({ sort: e.target.value as AdminBlogSort }, "push")}
           aria-label="Sort"
           className="rounded-xl border border-base-700 bg-base-950 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500"
         >
@@ -187,7 +240,7 @@ export default function BlogPostsTable({ posts }: { posts: BlogSummary[] }) {
         </div>
       )}
 
-      {rows.length === 0 ? (
+      {posts.length === 0 ? (
         <p className="mt-6 rounded-2xl border border-base-800 bg-base-900 p-8 text-center text-fg-muted">
           No posts match those filters.
         </p>
@@ -203,7 +256,7 @@ export default function BlogPostsTable({ posts }: { posts: BlogSummary[] }) {
                     aria-label="Select all shown"
                     checked={allShownSelected}
                     onChange={(e) =>
-                      setSelected(e.target.checked ? rows.map((r) => r.id) : [])
+                      setSelected(e.target.checked ? posts.map((r) => r.id) : [])
                     }
                   />
                 </th>
@@ -217,10 +270,10 @@ export default function BlogPostsTable({ posts }: { posts: BlogSummary[] }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-base-800 bg-base-900">
-              {rows.map((post, index) => (
+              {posts.map((post, index) => (
                 <tr key={post.id}>
                   <td className="px-4 py-3 text-xs tabular-nums text-fg-dim">
-                    {index + 1}
+                    {(page - 1) * pageSize + index + 1}
                   </td>
                   <td className="px-4 py-3">
                     <input
@@ -279,8 +332,9 @@ export default function BlogPostsTable({ posts }: { posts: BlogSummary[] }) {
                         Edit
                       </Link>
                       <Link
-                        href={`/blog/${post.slug}`}
+                        href={buildPreviewHref(post.id)}
                         target="_blank"
+                        rel="noopener noreferrer"
                         className="rounded-lg border border-base-700 px-3 py-1.5 text-xs text-fg-muted hover:text-fg"
                       >
                         Preview
@@ -299,6 +353,48 @@ export default function BlogPostsTable({ posts }: { posts: BlogSummary[] }) {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {total > 0 && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-fg-muted">
+          <p>
+            Page {page} of {totalPages} — {total} post{total === 1 ? "" : "s"}
+          </p>
+          <div className="flex gap-2">
+            {page > 1 ? (
+              <button
+                type="button"
+                onClick={() => go({ page: page - 1 }, "push")}
+                className="rounded-lg border border-base-700 px-3 py-1.5 text-xs text-fg-muted hover:text-fg"
+              >
+                ‹ Prev
+              </button>
+            ) : (
+              <span
+                aria-disabled="true"
+                className="rounded-lg border border-base-800 px-3 py-1.5 text-xs text-fg-dim opacity-40"
+              >
+                ‹ Prev
+              </span>
+            )}
+            {page < totalPages ? (
+              <button
+                type="button"
+                onClick={() => go({ page: page + 1 }, "push")}
+                className="rounded-lg border border-base-700 px-3 py-1.5 text-xs text-fg-muted hover:text-fg"
+              >
+                Next ›
+              </button>
+            ) : (
+              <span
+                aria-disabled="true"
+                className="rounded-lg border border-base-800 px-3 py-1.5 text-xs text-fg-dim opacity-40"
+              >
+                Next ›
+              </span>
+            )}
+          </div>
         </div>
       )}
 

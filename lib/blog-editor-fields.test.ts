@@ -106,3 +106,118 @@ group("buildInsertRow", () => {
     assert.deepEqual(row.related_app_ids, ["app-1", "app-2"]);
   });
 });
+
+group("buildInsertRow — article_type/target_app_id (three-type blog system)", () => {
+  test("neither field mentioned at all (no UI for it yet): defaults to general/null, matching the database column's own default", () => {
+    const row = buildInsertRow(fields(), "");
+    assert.equal(row.article_type, "general");
+    assert.equal(row.target_app_id, null);
+  });
+
+  test("an explicit article_type/target_app_id pair is written through unchanged", () => {
+    const row = buildInsertRow(
+      fields({
+        articleType: { touched: true, value: "app_related" },
+        targetAppId: { touched: true, value: "app-uuid-1" },
+      }),
+      "",
+    );
+    assert.equal(row.article_type, "app_related");
+    assert.equal(row.target_app_id, "app-uuid-1");
+  });
+
+  test("a new post always includes both keys, whatever the current value — there is nothing existing to protect", () => {
+    const row = buildInsertRow(fields({ articleType: { touched: false, value: "general" } }), "");
+    assert.equal("article_type" in row, true);
+    assert.equal("target_app_id" in row, true);
+  });
+});
+
+group("buildUpdateRow — article_type/target_app_id (three-type blog system)", () => {
+  test("neither field touched: neither key is present on the row at all, matching featured_image_url's own untouched behavior", () => {
+    const row = buildUpdateRow(fields(), "https://example.com/existing.webp", false);
+    assert.equal("article_type" in row, false);
+    assert.equal("target_app_id" in row, false);
+  });
+
+  test("a call site built before article types existed in the UI (fields with no articleType/targetAppId at all) leaves both columns untouched on update", () => {
+    // fields() below never mentions articleType/targetAppId — exactly what
+    // BlogEditor.tsx's current save() payload looks like before Task 3 adds
+    // its own selector UI. This is the core backward-compatibility guarantee.
+    const row = buildUpdateRow(fields(), "https://example.com/existing.webp", false);
+    assert.deepEqual(Object.keys(row).sort(), [
+      "author",
+      "category",
+      "content",
+      "description",
+      "published",
+      "related_app_ids",
+      "slug",
+      "title",
+    ]);
+  });
+
+  test("article_type touched: the new value is written", () => {
+    const row = buildUpdateRow(
+      fields({ articleType: { touched: true, value: "review_other" } }),
+      "https://example.com/existing.webp",
+      false,
+    );
+    assert.equal(row.article_type, "review_other");
+  });
+
+  test("target_app_id touched with a real value: written through", () => {
+    const row = buildUpdateRow(
+      fields({ targetAppId: { touched: true, value: "app-uuid-2" } }),
+      "https://example.com/existing.webp",
+      false,
+    );
+    assert.equal(row.target_app_id, "app-uuid-2");
+  });
+
+  test("target_app_id touched with an explicit null: the key is present as null, not omitted — clears the relationship intentionally", () => {
+    const row = buildUpdateRow(
+      fields({ targetAppId: { touched: true, value: null } }),
+      "https://example.com/existing.webp",
+      false,
+    );
+    assert.equal("target_app_id" in row, true);
+    assert.equal(row.target_app_id, null);
+  });
+
+  test("article_type touched but target_app_id not touched: only article_type is written, target_app_id stays untouched on the row", () => {
+    const row = buildUpdateRow(
+      fields({ articleType: { touched: true, value: "general" } }),
+      "https://example.com/existing.webp",
+      false,
+    );
+    assert.equal("article_type" in row, true);
+    assert.equal("target_app_id" in row, false);
+  });
+
+  test("switching General -> App Related intentionally: both fields touched together produce a consistent row", () => {
+    const row = buildUpdateRow(
+      fields({
+        articleType: { touched: true, value: "app_related" },
+        targetAppId: { touched: true, value: "app-uuid-3" },
+      }),
+      "https://example.com/existing.webp",
+      false,
+    );
+    assert.equal(row.article_type, "app_related");
+    assert.equal(row.target_app_id, "app-uuid-3");
+  });
+
+  test("switching App Related -> General intentionally: article_type changes and target_app_id is explicitly cleared, not left stale", () => {
+    const row = buildUpdateRow(
+      fields({
+        articleType: { touched: true, value: "general" },
+        targetAppId: { touched: true, value: null },
+      }),
+      "https://example.com/existing.webp",
+      false,
+    );
+    assert.equal(row.article_type, "general");
+    assert.equal(row.target_app_id, null);
+  });
+});

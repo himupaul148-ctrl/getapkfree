@@ -55,6 +55,8 @@ category: "privacy"
 author: "GetApkFree Team"
 featured_image_url: "https://example.com/cover.png"
 related_app_ids: ["uuid-1", "uuid-2", "uuid-3"]
+article_type: "general"
+target_app_id: "uuid-of-the-one-app-this-article-is-about"
 ---
 
 ## Your first heading
@@ -73,8 +75,12 @@ lists, tables and fenced code blocks all work.
 | `category` | yes | One of `privacy`, `productivity`, `gaming`, `tools`, `guides`, `news`. |
 | `author` | no | Defaults to `GetApkFree Team`. |
 | `featured_image_url` | no | Card and hero image. 16:9 looks best. |
-| `related_app_ids` | no | App UUIDs for the sidebar, in the order you want them shown. Leave it out and the sidebar falls back to trending apps. |
+| `related_app_ids` | no | App UUIDs for the sidebar, in the order you want them shown. Leave it out and the sidebar falls back to trending apps. Separate from `target_app_id` below — these are other apps the article mentions, not the one it's about. |
 | `published` | no | Defaults to `true`. Set `published: false` to push a draft that stays hidden. |
+| `article_type` | no | One of `general`, `app_related`, `review_other`. Defaults to `general` when omitted. |
+| `target_app_id` | conditional | The one app UUID this article is about. **Required when `article_type` is `app_related`.** Optional for `review_other` (e.g. a single-app review). Leave it out for `general` — it isn't used there. |
+
+Leaving `article_type`/`target_app_id` out of a routine content-edit republish does **not** reset them to `general`/empty on an existing post — omission means "leave whatever is already saved," the same rule `related_app_ids` and `featured_image_url` already follow. To actually change a post's type, put the field in the frontmatter with the new value.
 
 ### Finding app UUIDs
 

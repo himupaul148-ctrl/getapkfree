@@ -83,3 +83,54 @@ group("toPayload — everything else about the payload is unaffected", () => {
     assert.equal(payload.published, true);
   });
 });
+
+group("toPayload — article_type/target_app_id omitted from frontmatter", () => {
+  test("the returned payload has neither key at all — the API defaults article_type to general and leaves target_app_id untouched on an update", () => {
+    const payload = toPayload(parseFrontmatter(withFrontmatterLine(null), "post.md"), "post.md");
+    assert.equal("article_type" in payload, false);
+    assert.equal("target_app_id" in payload, false);
+  });
+});
+
+group("toPayload — article_type explicitly set in frontmatter", () => {
+  test("general is parsed and forwarded", () => {
+    const src = withFrontmatterLine('article_type: "general"');
+    const payload = toPayload(parseFrontmatter(src, "post.md"), "post.md");
+    assert.equal(payload.article_type, "general");
+  });
+
+  test("review_other is parsed and forwarded without requiring a target_app_id", () => {
+    const src = withFrontmatterLine('article_type: "review_other"');
+    const payload = toPayload(parseFrontmatter(src, "post.md"), "post.md");
+    assert.equal(payload.article_type, "review_other");
+    assert.equal("target_app_id" in payload, false);
+  });
+
+  test("app_related with a target_app_id is parsed and both reach the payload", () => {
+    const lines = withFrontmatterLine('article_type: "app_related"').split("\n");
+    lines.splice(
+      lines.indexOf("---", 1),
+      0,
+      'target_app_id: "561cc462-86f1-44bd-a834-fa202c764dbe"',
+    );
+    const payload = toPayload(parseFrontmatter(lines.join("\n"), "post.md"), "post.md");
+    assert.equal(payload.article_type, "app_related");
+    assert.equal(payload.target_app_id, "561cc462-86f1-44bd-a834-fa202c764dbe");
+  });
+
+  test("an unrecognised article_type fails parsing with a clear message, before ever reaching the API", () => {
+    const src = withFrontmatterLine('article_type: "sponsored"');
+    assert.throws(
+      () => toPayload(parseFrontmatter(src, "post.md"), "post.md"),
+      /article_type "sponsored" is not one of/,
+    );
+  });
+
+  test("app_related without a target_app_id fails parsing locally, matching the API's own rule", () => {
+    const src = withFrontmatterLine('article_type: "app_related"');
+    assert.throws(
+      () => toPayload(parseFrontmatter(src, "post.md"), "post.md"),
+      /target_app_id is required when article_type is app_related/,
+    );
+  });
+});

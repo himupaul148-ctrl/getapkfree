@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe as group, test } from "node:test";
 import { cache } from "react";
 
@@ -72,5 +74,37 @@ group("cache()'s pass-through contract (the guarantee lib/catalogue.ts relies on
     const empty = cache(async () => [] as unknown[]);
     assert.equal(await nullish("missing"), null);
     assert.deepEqual(await empty("missing"), []);
+  });
+});
+
+/**
+ * PREVIEW EXPERIMENT (Variant B early-preload investigation): getCatalogue
+ * gained the same cache() wrapper for the same structural reason as above —
+ * DeltaPreload introduces a second caller of getCatalogue() within one
+ * request, and a live, instrumented cold-cache test (counting real
+ * invocations of the underlying fetchCatalogue) proved unstable_cache alone
+ * does NOT dedupe that: two callers cost two real Supabase round trips
+ * without cache() layered on top; exactly one with it. That live count isn't
+ * something this static file can assert (same react-server-condition
+ * caveat as the block above) — this only confirms the wrapper is actually
+ * in source, in the right order (cache() outermost, wrapping unstable_cache).
+ */
+group("getCatalogue is wrapped in cache(unstable_cache(...)) — source check", () => {
+  const src = readFileSync(
+    fileURLToPath(new URL("./catalogue.ts", import.meta.url)),
+    "utf8",
+  );
+
+  test("getCatalogue = cache(unstable_cache(fetchCatalogue, ...))", () => {
+    assert.match(
+      src,
+      /export const getCatalogue = cache\(\s*unstable_cache\(fetchCatalogue,/,
+    );
+  });
+
+  test("cache() is the outer wrapper (dedupes per-request) around unstable_cache (persists cross-request)", () => {
+    const match = src.match(/export const getCatalogue = cache\(([\s\S]*?)\n\);/);
+    assert.ok(match, "getCatalogue assignment not found");
+    assert.match(match![1], /unstable_cache\(/);
   });
 });

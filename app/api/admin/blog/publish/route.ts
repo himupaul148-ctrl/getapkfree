@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { validateRelatedAppIds } from '@/lib/blog-related-app-ids';
+import { validateBlogPost } from '@/lib/blog-validation';
 
 /** Constant-time, trimmed comparison. Lengths differ -> reject before the
  *  timingSafeEqual call, which throws on a length mismatch. */
@@ -11,25 +11,6 @@ function tokenMatches(provided: string, expected: string): boolean {
   const b = Buffer.from(expected.trim());
   if (a.length !== b.length) return false;
   return timingSafeEqual(a, b);
-}
-
-/** Same rule BLOG_POSTING.md documents and scripts/publish-blog-posts.mjs
- *  already enforces client-side: lowercase words joined by single hyphens.
- *  Repeated here because this route is reachable directly (with the publish
- *  token) without going through that script, and slug has no database-level
- *  format constraint — only UNIQUE. */
-const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-
-/** Every post already in blog-posts/ is 597-2389 words; 500 sits comfortably
- *  below all of them while still catching an accidental stub (a post saved
- *  mid-draft, a truncated paste, a near-empty placeholder) before it goes
- *  live. Word count, not character count, since a "substantive content"
- *  check should track roughly how much was actually written, not how many
- *  characters a few long URLs or code blocks happen to add. */
-const MIN_CONTENT_WORDS = 500;
-
-function wordCount(text: string): number {
-  return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
 /** Case-insensitive, whitespace-normalised comparison — "My  Post" and
@@ -79,59 +60,35 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
-    const { title, description, content, slug, category, published, related_app_ids } = body;
+
+    // Shape validation: required fields, slug format, description length,
+    // category membership, minimum content length, and related_app_ids
+    // format — all centralized in lib/blog-validation.ts so this route and
+    // any future caller of that module apply the exact same rules. Existence
+    // checks that need a live Supabase query (related_app_ids, slug
+    // uniqueness, title collision) stay below, in this route, same as
+    // before.
+    const validation = validateBlogPost(body);
+    if (!validation.valid) {
+      return NextResponse.json(
+        { error: validation.error, ...(validation.extra ?? {}) },
+        { status: 400 },
+      );
+    }
+
+    const {
+      title,
+      description,
+      content,
+      slug,
+      category,
+      published,
+      relatedAppIds: relatedAppIdsResult,
+      featuredImageUrl,
+      articleType,
+      targetAppId,
+    } = validation.data;
     const isPublished = published === true;
-
-    // Validate required fields
-    if (!title || !description || !slug || !category) {
-      return NextResponse.json(
-        {
-          error: 'Missing required fields',
-          required: ['title', 'description', 'slug', 'category'],
-          received: Object.keys(body),
-        },
-        { status: 400 }
-      );
-    }
-
-    // Slug format: the script already enforces this before it ever calls
-    // this route, but this route is reachable directly with just the
-    // publish token, and slug has no format constraint at the database
-    // level (only UNIQUE) — so a malformed slug from any other caller would
-    // otherwise insert silently.
-    if (typeof slug !== 'string' || !SLUG_RE.test(slug)) {
-      return NextResponse.json(
-        {
-          error: 'Invalid slug: must be lowercase words joined by hyphens',
-          slug,
-        },
-        { status: 400 }
-      );
-    }
-
-    // Minimum substantive content: catches an accidental stub before it
-    // publishes, without touching the authoring workflow's own validation.
-    if (typeof content !== 'string' || wordCount(content) < MIN_CONTENT_WORDS) {
-      return NextResponse.json(
-        {
-          error: `Content is too short: ${typeof content === 'string' ? wordCount(content) : 0} words, minimum ${MIN_CONTENT_WORDS}`,
-        },
-        { status: 400 }
-      );
-    }
-
-    // related_app_ids: format/shape only — this can't confirm an ID actually
-    // exists in `apps`, only that the request looks like a well-formed list
-    // of UUIDs. Never trust the publish script alone here: this route is
-    // reachable directly with just the bearer token, the same reasoning the
-    // slug and content checks above already document.
-    const relatedAppIdsResult = validateRelatedAppIds(related_app_ids);
-    if (!relatedAppIdsResult.valid) {
-      return NextResponse.json(
-        { error: relatedAppIdsResult.error },
-        { status: 400 }
-      );
-    }
 
     // Initialize Supabase client with service role key
     const supabase = createClient(supabaseUrl, serviceRoleKey);
@@ -161,6 +118,34 @@ export async function POST(request: NextRequest) {
       if (missingIds.length > 0) {
         return NextResponse.json(
           { error: 'related_app_ids references apps that do not exist', missingIds },
+          { status: 400 }
+        );
+      }
+    }
+
+    // target_app_id: existence check, same shape as related_app_ids above.
+    // validateBlogPost() already rejected article_type: "app_related" with
+    // no target_app_id at all (a format-only check); this is the live
+    // Supabase check that a *provided* target_app_id (required for
+    // app_related, optional for general/review_other) actually resolves to
+    // a real app — the one thing the pure validator cannot know.
+    if (targetAppId.provided && targetAppId.value !== null) {
+      const { data: targetApp, error: targetAppError } = await supabase
+        .from('apps')
+        .select('id')
+        .eq('id', targetAppId.value)
+        .maybeSingle();
+
+      if (targetAppError) {
+        return NextResponse.json(
+          { error: 'Failed to validate target_app_id', details: targetAppError.message },
+          { status: 500 }
+        );
+      }
+
+      if (!targetApp) {
+        return NextResponse.json(
+          { error: 'target_app_id does not reference an existing app', targetAppId: targetAppId.value },
           { status: 400 }
         );
       }
@@ -239,6 +224,28 @@ export async function POST(request: NextRequest) {
         updatePayload.related_app_ids = relatedAppIdsResult.ids;
       }
 
+      // Same rule as published/related_app_ids above: only touch the column
+      // when the request body actually has the key (an explicit null is a
+      // real "clear the image" instruction and is written as such), so a
+      // routine content republish whose payload never mentions
+      // featured_image_url at all can't silently wipe out an image set
+      // through the admin editor.
+      if (featuredImageUrl.provided) {
+        updatePayload.featured_image_url = featuredImageUrl.value;
+      }
+
+      // Same tri-state rule again, for the three-type blog system: a post
+      // classified app_related through the admin UI must not have that
+      // classification (or its target app) silently cleared back to
+      // general/null by a routine republish whose frontmatter never
+      // mentions either field.
+      if (articleType.provided) {
+        updatePayload.article_type = articleType.value;
+      }
+      if (targetAppId.provided) {
+        updatePayload.target_app_id = targetAppId.value;
+      }
+
       result = await supabase
         .from('blog_posts')
         .update(updatePayload)
@@ -248,6 +255,13 @@ export async function POST(request: NextRequest) {
       // Insert new post — drafts by default unless published: true is sent.
       // related_app_ids is always included: [] when the request didn't
       // provide it, matching the column's own NOT NULL default.
+      // featured_image_url is likewise always included: null when the
+      // request didn't provide one, since there is no existing value to
+      // protect on a brand-new row. article_type/target_app_id follow suit:
+      // there is nothing existing to protect on an insert, so both are
+      // always included — DEFAULT_ARTICLE_TYPE ('general') and null when
+      // the request didn't mention them, matching the database column's own
+      // `not null default 'general'`.
       result = await supabase
         .from('blog_posts')
         .insert({
@@ -258,6 +272,9 @@ export async function POST(request: NextRequest) {
           category,
           published: isPublished,
           related_app_ids: relatedAppIdsResult.ids,
+          featured_image_url: featuredImageUrl.value,
+          article_type: articleType.value,
+          target_app_id: targetAppId.value,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })

@@ -46,7 +46,11 @@ export default function MobileSearchOverlay() {
     >
       <div className="flex items-center gap-3 border-b border-base-800 px-4 py-3">
         <div className="min-w-0 flex-1">
-          <HeaderSearch idPrefix="mobile-overlay" placeholder="Search apps, packages, developers…" />
+          <HeaderSearch
+            idPrefix="mobile-overlay"
+            placeholder="Search apps, packages, developers…"
+            scrollableResults
+          />
         </div>
         <button
           type="button"

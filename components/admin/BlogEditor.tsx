@@ -8,9 +8,19 @@ import MarkdownEditor from "@/components/admin/MarkdownEditor";
 import RelatedAppPicker, {
   type PickerApp,
 } from "@/components/admin/RelatedAppPicker";
+import TargetAppPicker from "@/components/admin/TargetAppPicker";
 import { createClient } from "@/lib/supabase/client";
-import { BLOG_CATEGORIES, CATEGORY_LABELS, type BlogPost } from "@/lib/blog";
+import {
+  ARTICLE_TYPES,
+  ARTICLE_TYPE_LABELS,
+  BLOG_CATEGORIES,
+  CATEGORY_LABELS,
+  DEFAULT_ARTICLE_TYPE,
+  type ArticleType,
+  type BlogPost,
+} from "@/lib/blog";
 import { buildInsertRow, buildUpdateRow } from "@/lib/blog-editor-fields";
+import { buildPreviewHref } from "@/lib/blog-preview";
 import { SITE_URL } from "@/lib/seo";
 
 const DESCRIPTION_LIMIT = 160;
@@ -58,12 +68,18 @@ export default function BlogEditor({
   const [content, setContent] = useState(post?.content ?? "");
   const [related, setRelated] = useState<string[]>(post?.related_app_ids ?? []);
   const [author, setAuthor] = useState(post?.author ?? "GetApkFree Team");
+  const [articleType, setArticleType] = useState<ArticleType>(
+    post?.article_type ?? DEFAULT_ARTICLE_TYPE,
+  );
+  const [targetAppId, setTargetAppId] = useState<string | null>(
+    post?.target_app_id ?? null,
+  );
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<{ slug: string; live: boolean } | null>(
-    null,
-  );
+  const [success, setSuccess] = useState<
+    { slug: string; live: boolean; id: string } | null
+  >(null);
 
   const effectiveSlug = slug || slugify(title);
 
@@ -83,11 +99,27 @@ export default function BlogEditor({
     setImageTouched(true);
   }
 
+  /**
+   * App Related -> General clears the target app intentionally, rather than
+   * leaving it as stale hidden state the admin can't see once the picker
+   * disappears. App Related -> Review/Other does NOT clear it — the
+   * database allows an optional target app for review_other too (e.g. a
+   * single-app review), so a target already chosen stays chosen unless the
+   * admin explicitly removes it via TargetAppPicker's own clear control.
+   */
+  function onArticleTypeChange(next: ArticleType) {
+    setArticleType(next);
+    if (next === "general") setTargetAppId(null);
+  }
+
   function validate(): string | null {
     if (!title.trim()) return "A title is required.";
     if (!effectiveSlug) return "A slug is required.";
     if (!description.trim()) return "A description is required for SEO.";
     if (!category) return "Pick a category.";
+    if (articleType === "app_related" && !targetAppId) {
+      return "Choose which app this article is about.";
+    }
     return null;
   }
 
@@ -129,9 +161,20 @@ export default function BlogEditor({
       category,
       relatedAppIds: related,
       published: publish,
+      // Always touched: this form always holds a definite, current value
+      // for both — loaded from the existing post on edit, defaulted on a
+      // new one — the same way category/author are always resent rather
+      // than tri-stated. The write layer's own tri-state support
+      // (lib/blog-editor-fields.ts) exists for the OTHER write path (the
+      // git-based frontmatter pipeline), which can genuinely omit these
+      // fields; this form never can.
+      articleType: { touched: true, value: articleType },
+      targetAppId: { touched: true, value: targetAppId },
     };
 
     try {
+      let savedId: string;
+
       if (editing) {
         // See lib/blog-editor-fields.ts for why featured_image_url is only
         // ever included in this payload when imageTouched is true.
@@ -140,11 +183,19 @@ export default function BlogEditor({
           .update(buildUpdateRow(fields, image, imageTouched))
           .eq("id", post!.id);
         if (updateError) throw updateError;
+        savedId = post!.id;
       } else {
-        const { error: insertError } = await supabase
+        // .select().single() so the freshly-generated id comes back in the
+        // same round trip — needed to link straight to this draft's preview
+        // from the success message below, without a second query or forcing
+        // a navigation away from this (now-reset) form.
+        const { data: inserted, error: insertError } = await supabase
           .from("blog_posts")
-          .insert(buildInsertRow(fields, image));
+          .insert(buildInsertRow(fields, image))
+          .select("id")
+          .single();
         if (insertError) throw insertError;
+        savedId = inserted.id;
       }
 
       // The listing is cached for an hour; drop it so a publish is visible now.
@@ -161,7 +212,7 @@ export default function BlogEditor({
       // save in this same session goes back to leaving the column alone
       // unless it's touched again.
       setImageTouched(false);
-      setSuccess({ slug: effectiveSlug, live: publish });
+      setSuccess({ slug: effectiveSlug, live: publish, id: savedId });
       router.refresh();
 
       if (!editing) {
@@ -210,9 +261,19 @@ export default function BlogEditor({
               View the post
             </Link>
           ) : (
-            <span className="text-brand-300/80">
-              It will not appear on the public blog until you publish it.
-            </span>
+            <>
+              <Link
+                href={buildPreviewHref(success.id)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                Preview it
+              </Link>{" "}
+              <span className="text-brand-300/80">
+                — it will not appear on the public blog until you publish it.
+              </span>
+            </>
           )}
         </p>
       )}
@@ -297,6 +358,24 @@ export default function BlogEditor({
         </div>
 
         <div>
+          <label htmlFor="post-article-type" className="block text-sm font-medium">
+            Article Type
+          </label>
+          <select
+            id="post-article-type"
+            value={articleType}
+            onChange={(e) => onArticleTypeChange(e.target.value as ArticleType)}
+            className="mt-1.5 w-full rounded-xl border border-base-700 bg-base-950 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500"
+          >
+            {ARTICLE_TYPES.map((t) => (
+              <option key={t} value={t} className="bg-base-850">
+                {ARTICLE_TYPE_LABELS[t]}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
           <label htmlFor="post-author" className="block text-sm font-medium">
             Author
           </label>
@@ -308,6 +387,22 @@ export default function BlogEditor({
             className="mt-1.5 w-full rounded-xl border border-base-700 bg-base-950 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500"
           />
         </div>
+
+        {/* Only for App Related (required) and Review/Other (optional — the
+            database allows a single-app review). General never shows this:
+            target_app_id isn't used there, and onArticleTypeChange above
+            already clears any previously-chosen target the moment an admin
+            switches back to General. */}
+        {articleType !== "general" && (
+          <div className="sm:col-span-2">
+            <TargetAppPicker
+              apps={apps}
+              selectedId={targetAppId}
+              onChange={setTargetAppId}
+              required={articleType === "app_related"}
+            />
+          </div>
+        )}
 
         <div className="sm:col-span-2">
           <FeaturedImageUploader
@@ -349,6 +444,24 @@ export default function BlogEditor({
         >
           Save as draft
         </button>
+
+        {editing ? (
+          <Link
+            href={buildPreviewHref(post!.id)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-xl border border-base-700 px-6 py-3 text-sm text-fg-muted transition-colors hover:text-fg"
+          >
+            Preview
+          </Link>
+        ) : (
+          <span
+            title="This post has no saved version yet — save it as a draft first, then use the Preview link that appears above."
+            className="text-xs text-fg-dim"
+          >
+            Preview available after the first save
+          </span>
+        )}
 
         {editing && (
           <p className="text-xs text-fg-dim">

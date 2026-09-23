@@ -3,11 +3,14 @@ import { describe as group, test } from "node:test";
 import {
   appDescriptionSuffix,
   appSummarySentence,
+  blogCategoryMetaDescription,
   categoryMetaDescription,
+  clampDescription,
   licenseAndTargetSdkLine,
   SITE_DESCRIPTION,
   type AppSummaryFacts,
 } from "./seo.ts";
+import { BLOG_CATEGORIES } from "./blog-categories.ts";
 
 /**
  * Covers the bug found in the Multimedia content audit: the app detail page's
@@ -45,6 +48,16 @@ group("appDescriptionSuffix", () => {
  * changelog" unconditionally — false for the catalogue's external (official
  * source, not scanned by us) listings. It now distinguishes the two rather
  * than asserting scanning applies to the whole catalogue.
+ *
+ * P1 homepage-description-length fix: the audit found this same constant was
+ * 213 characters — over clampDescription's own default 160-character max —
+ * and was used verbatim/unclamped in app/layout.tsx and app/page.tsx,
+ * risking SERP truncation on the site's own homepage. Shortened to preserve
+ * the same brand claims (free/open-source, F-Droid builds versioned and
+ * malware-scanned, non-F-Droid apps link to their official source) at a
+ * naturally safe length, and its two call sites now wrap it in
+ * clampDescription() as a defensive safety net (see app/layout.tsx's
+ * DEFAULT_DESCRIPTION and app/page.tsx's HOME_DESCRIPTION).
  */
 group("SITE_DESCRIPTION", () => {
   test("does not claim every build is malware-scanned", () => {
@@ -54,6 +67,31 @@ group("SITE_DESCRIPTION", () => {
   test("distinguishes F-Droid builds from everything else", () => {
     assert.match(SITE_DESCRIPTION, /F-Droid builds are.*malware-scanned/i);
     assert.match(SITE_DESCRIPTION, /official source/i);
+  });
+
+  test("is within clampDescription's own default max length (160) — safely bounded by design, not relying on truncation at the point of use", () => {
+    assert.ok(
+      SITE_DESCRIPTION.length <= 160,
+      `expected SITE_DESCRIPTION.length (${SITE_DESCRIPTION.length}) to be <= 160`,
+    );
+  });
+
+  test("clampDescription(SITE_DESCRIPTION) is a true no-op — the constant never actually gets truncated/ellipsis-ed when passed through the helper", () => {
+    assert.equal(clampDescription(SITE_DESCRIPTION), SITE_DESCRIPTION);
+  });
+
+  test("still describes GetApkFree accurately — free, open-source, no keyword stuffing or repeated 'APK download' phrasing", () => {
+    assert.match(SITE_DESCRIPTION, /free/i);
+    assert.match(SITE_DESCRIPTION, /open-source/i);
+    // "download" (as a word) appears at most once — no repeated
+    // "APK download... download... download" keyword stuffing.
+    const downloadOccurrences = (SITE_DESCRIPTION.match(/download/gi) ?? []).length;
+    assert.ok(downloadOccurrences <= 1, `expected at most 1 occurrence of "download", found ${downloadOccurrences}`);
+  });
+
+  test("still a genuine, meaningful sentence — not reduced to a bare keyword fragment", () => {
+    assert.ok(SITE_DESCRIPTION.length > 40, "expected more than a token-length fragment");
+    assert.match(SITE_DESCRIPTION, /\./, "expected at least one real sentence boundary");
   });
 });
 
@@ -88,6 +126,49 @@ group("categoryMetaDescription", () => {
     const tools = categoryMetaDescription("Tools").replace(/tools/gi, "X");
     const education = categoryMetaDescription("Education").replace(/education/gi, "X");
     assert.equal(tools, education);
+  });
+});
+
+/**
+ * P1 blog-listing-metadata fix: unlike categoryMetaDescription above (one
+ * template shared by every app category), blogCategoryMetaDescription gives
+ * every one of the six canonical blog categories (lib/blog-categories.ts) its
+ * own bespoke sentence — a template collides for the "guides" category, since
+ * the word "guides" is also the generic noun the rest of the blog's own copy
+ * uses for its content (see app/blog/page.tsx's base description).
+ */
+group("blogCategoryMetaDescription", () => {
+  test("every canonical blog category (lib/blog-categories.ts) has its own real description, not the generic fallback", () => {
+    const fallback = "Guides, tips and app recommendations from the GetApkFree team.";
+    for (const category of BLOG_CATEGORIES) {
+      const description = blogCategoryMetaDescription(category);
+      assert.notEqual(description, fallback, `expected a bespoke description for "${category}"`);
+      assert.ok(description.length > 0);
+    }
+  });
+
+  test("every description is unique — no two categories share the same wording", () => {
+    const descriptions = BLOG_CATEGORIES.map((c) => blogCategoryMetaDescription(c));
+    assert.equal(new Set(descriptions).size, descriptions.length);
+  });
+
+  test("the \"guides\" category's description never reads as \"guides guides\" or otherwise doubles the word", () => {
+    const description = blogCategoryMetaDescription("guides");
+    assert.doesNotMatch(description, /guides\s+guides/i);
+  });
+
+  test("an unrecognised category falls back to the generic blog description rather than throwing or returning undefined/empty", () => {
+    assert.equal(
+      blogCategoryMetaDescription("not-a-real-category"),
+      "Guides, tips and app recommendations from the GetApkFree team.",
+    );
+  });
+
+  test("each description is already within a normal meta-description length (clampDescription is a no-op on all six)", () => {
+    for (const category of BLOG_CATEGORIES) {
+      const description = blogCategoryMetaDescription(category);
+      assert.equal(clampDescription(description), description);
+    }
   });
 });
 
