@@ -187,13 +187,14 @@ group("sitemap/RSS call sites remain untouched", () => {
     assert.doesNotMatch(sitemapSrc, /getPublishedPostsPaged/);
   });
 
-  test("app/blog/feed.xml/route.ts still uses getPublishedPosts, not getPublishedPostsPaged", () => {
+  test("app/blog/feed.xml/route.ts uses the bounded getRecentPosts(FEED_LIMIT), not getPublishedPostsPaged or the unbounded getPublishedPosts", () => {
     const feedSrc = readFileSync(
       fileURLToPath(new URL("../app/blog/feed.xml/route.ts", import.meta.url)),
       "utf8",
     );
-    assert.match(feedSrc, /const posts = await getPublishedPosts\(\);/);
+    assert.match(feedSrc, /const posts = await getRecentPosts\(FEED_LIMIT\);/);
     assert.doesNotMatch(feedSrc, /getPublishedPostsPaged/);
+    assert.doesNotMatch(feedSrc, /getPublishedPosts\(\)/);
   });
 });
 

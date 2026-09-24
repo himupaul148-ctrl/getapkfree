@@ -118,12 +118,12 @@ group("unaffected call sites keep using the cached getPublishedPosts", () => {
     assert.doesNotMatch(pageSrc, /getPublishedPostsForSitemap/);
   });
 
-  test("/blog/feed.xml still uses getPublishedPosts, not the sitemap-only helper", () => {
+  test("/blog/feed.xml uses the bounded getRecentPosts, not the sitemap-only helper", () => {
     const feedSrc = readFileSync(
       fileURLToPath(new URL("../../app/blog/feed.xml/route.ts", import.meta.url)),
       "utf8",
     );
-    assert.match(feedSrc, /const posts = await getPublishedPosts\(\);/);
+    assert.match(feedSrc, /const posts = await getRecentPosts\(FEED_LIMIT\);/);
     assert.doesNotMatch(feedSrc, /getPublishedPostsForSitemap/);
   });
 

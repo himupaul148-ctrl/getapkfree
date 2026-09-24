@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useDeferredValue, useMemo, useRef, useState } from "react";
 import { renderMarkdown } from "@/lib/markdown";
 
 type Tool = {
@@ -85,7 +85,23 @@ export default function MarkdownEditor({
     });
   }
 
-  const html = renderMarkdown(value);
+  // renderMarkdown() runs the full remark/rehype/sanitize pipeline — cheap for
+  // a short post, but a real cost on a long article, and there is no reason
+  // to pay it on every keystroke: `value`/`onChange` above are unaffected by
+  // any of this (the textarea itself stays perfectly synchronous), so typing
+  // never lags regardless of article length.
+  //
+  // useDeferredValue lets React finish the higher-priority keystroke render
+  // first and recompute the preview afterward, rather than gating it behind a
+  // fixed delay timer — no time constant to tune, and it still catches up
+  // immediately once typing pauses. Skipping the call entirely in
+  // "write" mode (preview not rendered at all) avoids the cost outright for
+  // the common case of an author who never opens split/preview while drafting.
+  const deferredValue = useDeferredValue(value);
+  const html = useMemo(
+    () => (tab === "write" ? "" : renderMarkdown(deferredValue)),
+    [tab, deferredValue],
+  );
 
   return (
     <div className="rounded-2xl border border-base-700 bg-base-950">
@@ -135,7 +151,7 @@ export default function MarkdownEditor({
             spellCheck
             rows={22}
             placeholder="Write the post in markdown…"
-            className="w-full resize-y bg-transparent p-4 font-mono text-sm leading-relaxed outline-none"
+            className="w-full resize-y bg-transparent p-4 font-mono text-sm leading-relaxed outline-none focus:ring-2 focus:ring-inset focus:ring-brand-500/60"
           />
         )}
 

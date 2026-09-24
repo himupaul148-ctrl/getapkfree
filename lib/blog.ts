@@ -133,6 +133,58 @@ export const getPublishedPosts = unstable_cache(
   { revalidate: 3600, tags: ["blog"] },
 );
 
+/**
+ * Matches getRelatedArticles()/CATEGORY_RELATED_POSTS_LIMIT's own "small
+ * recent section" scale, not BLOG_STATIC_PARAMS_LIMIT's build-time cap —
+ * this is a live request-path limit, not a static-generation one.
+ */
+export const HOME_RECENT_POSTS_LIMIT = 3;
+
+async function fetchRecent(limit: number): Promise<BlogSummary[]> {
+  const { data, error } = await supabase
+    .from("blog_posts")
+    .select(`${LIST_COLUMNS}, content`)
+    .eq("published", true)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(limit + RETIRED_SLUGS.length)
+    .returns<BlogPost[]>();
+
+  const rows = resolveQueryResult(data, error, "fetchRecent: Supabase query failed") ?? [];
+
+  return rows
+    .filter((post) => !RETIRED_SLUGS.includes(post.slug))
+    .slice(0, limit)
+    .map(({ content, ...rest }) => ({
+      ...rest,
+      excerptText: rest.description || excerpt(content),
+      readMinutes: readingTime(content),
+    }));
+}
+
+/**
+ * Bounded alternative to getPublishedPosts() for callers that only need the
+ * N most recent posts rather than every published one — the homepage's
+ * "Latest from the Blog" teaser (N = HOME_RECENT_POSTS_LIMIT) and the RSS
+ * feed (N = FEED_LIMIT, lib/blog-feed.ts). Both previously called
+ * getPublishedPosts(), which selects every published post's full `content`
+ * column and derives an excerpt/read-time for each one, only to immediately
+ * discard all but a small in-memory slice. This applies the same `.limit()`
+ * at the database instead.
+ *
+ * Over-fetches by RETIRED_SLUGS.length and filters client-side — the same
+ * buffer-then-filter approach getAdjacentPosts() above already uses for its
+ * own bounded, unpaginated lookup — rather than getPublishedPostsPaged()'s
+ * DB-level `.not("slug", "in", ...)` exclusion, which exists specifically to
+ * keep an exact, paginated count; a small "recent N" list has no equivalent
+ * exactness requirement.
+ */
+export const getRecentPosts = unstable_cache(
+  fetchRecent,
+  ["blog-recent-posts"],
+  { revalidate: 3600, tags: ["blog"] },
+);
+
 export type SitemapBlogPost = { slug: string; updated_at: string };
 
 /**
@@ -599,6 +651,51 @@ export async function getRelatedArticles(
 ): Promise<BlogSummary[]> {
   const rows = await getPublishedPostsByCategory(post.category as BlogCategory, limit + 1);
   return rows.filter((row) => row.id !== post.id).slice(0, limit);
+}
+
+/**
+ * Small, curated slug-driven lookup — powers the homepage's category→blog
+ * section via lib/category-content.ts's already-audited CATEGORY_LISTICLE
+ * mapping (the same one-verified-relevant-post-per-app-category relationship
+ * already trusted on the app detail page and the homepage's own category
+ * hero), rather than lib/blog-app-category-mapping.ts's blog-category
+ * matching — which only ever covered 4 of 8 app categories and, even for
+ * those 4, was starved of matching data because most posts share the
+ * "guides" blog category regardless of actual topic. This reuses an already-
+ * verified editorial relationship instead of inventing a new one or fuzzy-
+ * matching keywords.
+ *
+ * Bounded by construction (`slugs` is always a small, editor-curated list
+ * from CATEGORY_LISTICLE, never a client-supplied or unbounded value) — no
+ * separate `limit` parameter is needed the way every other listing query in
+ * this file has one.
+ */
+export async function getPostsBySlugs(slugs: string[]): Promise<BlogSummary[]> {
+  if (slugs.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("blog_posts")
+    .select(`${LIST_COLUMNS}, content`)
+    .eq("published", true)
+    .in("slug", slugs)
+    .returns<BlogPost[]>();
+
+  const rows = resolveQueryResult(data, error, "getPostsBySlugs: Supabase query failed") ?? [];
+  const bySlug = new Map(rows.map((row) => [row.slug, row]));
+
+  // Preserve the curated order `slugs` was given in, not whatever order
+  // Postgres happens to return for an .in() query — the same principle
+  // orderAndLimitRelatedApps applies for getRelatedApps() above. A slug that
+  // doesn't resolve (retired, unpublished, or deleted) is simply omitted
+  // rather than breaking the whole lookup.
+  return slugs
+    .map((slug) => bySlug.get(slug))
+    .filter((row): row is BlogPost => row !== undefined && !RETIRED_SLUGS.includes(row.slug))
+    .map(({ content, ...rest }) => ({
+      ...rest,
+      excerptText: rest.description || excerpt(content),
+      readMinutes: readingTime(content),
+    }));
 }
 
 export type PublishedPostsPage = {

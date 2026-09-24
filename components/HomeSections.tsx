@@ -9,13 +9,12 @@ import CategoryCards from "@/components/catalogue/CategoryCards";
 import FilterProvider from "@/components/catalogue/FilterProvider";
 import FeaturedAppCard from "@/components/FeaturedAppCard";
 import WhyGetApkFree from "@/components/WhyGetApkFree";
-import { getPublishedPosts, getPublishedPostsByCategory } from "@/lib/blog";
+import { getRecentPosts, HOME_RECENT_POSTS_LIMIT, getPostsBySlugs } from "@/lib/blog";
 import { getCatalogue } from "@/lib/catalogue";
 // PREVIEW EXPERIMENT — Variant B early-preload investigation, not yet committed.
 import { alreadyKnownApps, deltaPreloadUrl } from "@/lib/catalogue-delta";
 import { trendingScore } from "@/lib/format";
-import { getBlogCategoryForAppCategory } from "@/lib/blog-app-category-mapping";
-import { isCategory } from "@/lib/category-content";
+import { categoryListicle, isCategory } from "@/lib/category-content";
 import { CATEGORIES } from "@/lib/types";
 import type { Filters } from "@/components/catalogue/FilterProvider";
 import type { AppSummary } from "@/lib/types";
@@ -34,31 +33,33 @@ export default async function HomeSections({
       meaningless (and ignored) unless filters.category is set. */
   categoryPage: number;
 }) {
-  // Phase 1 Task 7: the blog category this app category automatically maps
-  // to (lib/blog-app-category-mapping.ts), or undefined for an unmapped
-  // category (Multimedia, Internet, Education, Writing) or no active
-  // category at all. Resolved synchronously from `filters` alone, so it can
-  // join the same Promise.all below instead of creating a second round trip
-  // after the fact.
-  const categoryBlogCategory =
+  // The one already-audited, per-category editorial relationship
+  // (lib/category-content.ts's CATEGORY_LISTICLE — the same "best
+  // open-source X apps" guide already linked from this category's own hero
+  // above and from every app/[slug] page in this category) drives this
+  // section too, rather than lib/blog-app-category-mapping.ts's blog-category
+  // matching: that mechanism only ever covered 4 of the 8 app categories and,
+  // even for those 4, returned few/no results because most posts share the
+  // "guides" blog category regardless of topic. Reusing a verified
+  // relationship instead of inventing a new one. Resolved synchronously from
+  // `filters` alone, so it can join the same Promise.all below instead of
+  // creating a second round trip after the fact.
+  const categorySlug =
     filters.category && isCategory(filters.category)
-      ? getBlogCategoryForAppCategory(filters.category)
+      ? categoryListicle(filters.category)?.slug
       : undefined;
 
-  // getPublishedPosts() throws on a genuine Supabase failure (see
+  // getRecentPosts() throws on a genuine Supabase failure (see
   // lib/supabase/query-result.ts) — caught here so a blog-side outage only
   // drops the homepage's blog teaser, not the whole page (unlike getCatalogue,
   // which reports its own error inline and is handled below). The category
   // section behaves the same way for the same reason — and simply has
-  // nothing to fetch at all when the active category has no blog mapping.
-  const [{ apps, error }, posts, categoryRelatedPosts] = await Promise.all([
+  // nothing to fetch at all when the active category has no listicle.
+  const [{ apps, error }, latestPosts, categoryRelatedPosts] = await Promise.all([
     getCatalogue(),
-    getPublishedPosts().catch(() => []),
-    categoryBlogCategory
-      ? getPublishedPostsByCategory(categoryBlogCategory).catch(() => [])
-      : Promise.resolve([]),
+    getRecentPosts(HOME_RECENT_POSTS_LIMIT).catch(() => []),
+    categorySlug ? getPostsBySlugs([categorySlug]).catch(() => []) : Promise.resolve([]),
   ]);
-  const latestPosts = posts.slice(0, 3);
 
   if (error) {
     return (
@@ -191,9 +192,11 @@ export default async function HomeSections({
 
           {/* Cards stay server-rendered — the carousel only wraps them. */}
           <AppCarousel label="Featured apps">
-            {exploreApps.map((app) => (
+            {exploreApps.map((app, index) => (
               <li key={app.id} className={CAROUSEL_ITEM}>
-                <FeaturedAppCard app={app} />
+                {/* Only the first card is a realistic LCP candidate — the
+                    rest of the carousel is offscreen/scrolled-to. */}
+                <FeaturedAppCard app={app} priority={index === 0} />
               </li>
             ))}
           </AppCarousel>
@@ -260,12 +263,12 @@ export default async function HomeSections({
         />
       )}
 
-      {/* Phase 1 Task 7: category -> blog internal linking. Renders only
-          when the active app category has a Task 6 mapping AND that mapped
-          blog category actually has published posts — never an empty
-          heading or placeholder. Reuses BlogCard and the exact grid layout
-          "Latest from the Blog" below already uses, rather than a new
-          card design. */}
+      {/* Category -> blog internal linking, driven by CATEGORY_LISTICLE
+          (lib/category-content.ts). Renders only when the active category
+          has a listicle AND that post is actually published — never an
+          empty heading or placeholder. Reuses BlogCard and the exact grid
+          layout "Latest from the Blog" below already uses, rather than a
+          new card design. */}
       {filters.category && categoryRelatedPosts.length > 0 && (
         <section className="mt-12 sm:mt-20">
           <div className="flex flex-wrap items-end justify-between gap-4">

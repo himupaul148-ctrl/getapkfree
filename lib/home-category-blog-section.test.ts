@@ -18,12 +18,11 @@ const src = readFileSync(
   "utf8",
 );
 
-group("consumes the Task 6 mapping — no new taxonomy relationship introduced", () => {
-  test("imports getBlogCategoryForAppCategory from lib/blog-app-category-mapping, not a second mapping", () => {
-    assert.match(
-      src,
-      /import \{ getBlogCategoryForAppCategory \} from "@\/lib\/blog-app-category-mapping";/,
-    );
+group("consumes the already-audited CATEGORY_LISTICLE relationship — no new taxonomy invented", () => {
+  test("imports categoryListicle from lib/category-content, not lib/blog-app-category-mapping", () => {
+    assert.match(src, /import \{ categoryListicle, isCategory \} from "@\/lib\/category-content";/);
+    assert.doesNotMatch(src, /import .* from "@\/lib\/blog-app-category-mapping";/);
+    assert.doesNotMatch(src, /getBlogCategoryForAppCategory\(/);
   });
 
   test("no hand-written category-to-category object literal was added here", () => {
@@ -31,45 +30,45 @@ group("consumes the Task 6 mapping — no new taxonomy relationship introduced",
     assert.doesNotMatch(src, /APP_TO_BLOG_CATEGORY/);
   });
 
-  test("guards the active category through isCategory() before consulting the mapping — an unrecognised value is never passed to it", () => {
+  test("guards the active category through isCategory() before consulting the listicle mapping — an unrecognised value is never passed to it", () => {
     assert.match(
       src,
-      /filters\.category && isCategory\(filters\.category\)\s*\n\s*\? getBlogCategoryForAppCategory\(filters\.category\)\s*\n\s*: undefined/,
+      /filters\.category && isCategory\(filters\.category\)\s*\n\s*\? categoryListicle\(filters\.category\)\?\.slug\s*\n\s*: undefined/,
     );
   });
 });
 
-group("the query is the dedicated, bounded, database-filtered helper — not the sitewide unbounded listing", () => {
-  test("imports getPublishedPostsByCategory alongside the existing getPublishedPosts, not a new ad hoc query", () => {
+group("the query is the small, curated, slug-driven helper — not fuzzy category matching or the sitewide unbounded listing", () => {
+  test("imports getPostsBySlugs alongside the bounded getRecentPosts, not a new ad hoc query", () => {
     assert.match(
       src,
-      /import \{ getPublishedPosts, getPublishedPostsByCategory \} from "@\/lib\/blog";/,
+      /import \{ getRecentPosts, HOME_RECENT_POSTS_LIMIT, getPostsBySlugs \} from "@\/lib\/blog";/,
     );
   });
 
-  test("calls getPublishedPostsByCategory(categoryBlogCategory) only when a mapping was actually found", () => {
+  test("calls getPostsBySlugs([categorySlug]) only when a listicle actually exists for this category", () => {
     assert.match(
       src,
-      /categoryBlogCategory\s*\n\s*\? getPublishedPostsByCategory\(categoryBlogCategory\)\.catch\(\(\) => \[\]\)\s*\n\s*: Promise\.resolve\(\[\]\)/,
+      /categorySlug \? getPostsBySlugs\(\[categorySlug\]\)\.catch\(\(\) => \[\]\) : Promise\.resolve\(\[\]\)/,
     );
   });
 
-  test("no separate/duplicate call to getPublishedPostsByCategory exists anywhere else in the file", () => {
-    const calls = [...src.matchAll(/getPublishedPostsByCategory\(/g)];
+  test("no separate/duplicate call to getPostsBySlugs exists anywhere else in the file", () => {
+    const calls = [...src.matchAll(/getPostsBySlugs\(/g)];
     assert.equal(calls.length, 1);
   });
 });
 
 group("fetched in parallel with the existing catalogue/blog fetches — no added waterfall", () => {
-  test("categoryRelatedPosts is destructured from the same Promise.all as apps/error and posts", () => {
+  test("categoryRelatedPosts is destructured from the same Promise.all as apps/error and latestPosts", () => {
     assert.match(
       src,
-      /const \[\{ apps, error \}, posts, categoryRelatedPosts\] = await Promise\.all\(\[/,
+      /const \[\{ apps, error \}, latestPosts, categoryRelatedPosts\] = await Promise\.all\(\[/,
     );
   });
 
-  test("categoryBlogCategory is resolved synchronously (from filters alone) before the Promise.all, not awaited first", () => {
-    const mappingIndex = src.indexOf("const categoryBlogCategory =");
+  test("categorySlug is resolved synchronously (from filters alone) before the Promise.all, not awaited first", () => {
+    const mappingIndex = src.indexOf("const categorySlug =");
     const promiseAllIndex = src.indexOf("await Promise.all([");
     assert.ok(mappingIndex > -1 && promiseAllIndex > -1);
     assert.ok(mappingIndex < promiseAllIndex);

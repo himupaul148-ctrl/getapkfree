@@ -17,11 +17,15 @@ import type { AppSummary } from "@/lib/types";
 export default function FeaturedAppCard({
   app,
   dense = false,
+  priority = false,
 }: {
   app: AppSummary;
   /** Recently Updated's tighter horizontal row: icon + name/meta + a small
       Download link, no card border/padding. */
   dense?: boolean;
+  /** Set only on the first card of a row/carousel — the one likely to be
+      the page's LCP element — never on every card in the row. */
+  priority?: boolean;
 }) {
   if (dense) {
     return (
@@ -29,7 +33,7 @@ export default function FeaturedAppCard({
         href={`/app/${app.slug}`}
         className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-base-850 sm:px-5"
       >
-        <AppIcon src={app.iconUrl} name={app.name} size={40} />
+        <AppIcon src={app.iconUrl} name={app.name} size={40} priority={priority} />
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium text-fg transition-colors group-hover:text-brand-400">
             {app.name}
@@ -51,7 +55,7 @@ export default function FeaturedAppCard({
       href={`/app/${app.slug}`}
       className="group flex h-full w-full min-w-0 flex-col rounded-2xl border border-base-800 bg-base-900 p-4 transition-colors hover:border-brand-500/50 hover:bg-base-850 focus-visible:border-brand-500 focus-visible:outline-none"
     >
-      <AppIcon src={app.iconUrl} name={app.name} size={48} />
+      <AppIcon src={app.iconUrl} name={app.name} size={48} priority={priority} />
       <p className="mt-3 truncate font-semibold text-fg transition-colors group-hover:text-brand-400">
         {app.name}
       </p>

@@ -19,6 +19,11 @@ export default function MobileSearchOverlay() {
 
   useEffect(() => {
     if (!open) return;
+    // The trigger (bottom-nav Search tab or the mobile header's search icon)
+    // had keyboard focus just before this ran — restored on close so a
+    // keyboard user isn't stranded at <body> once the overlay disappears.
+    const trigger = document.activeElement as HTMLElement | null;
+
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") close();
     }
@@ -31,6 +36,7 @@ export default function MobileSearchOverlay() {
     return () => {
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = previous;
+      trigger?.focus();
     };
   }, [open, close]);
 
@@ -56,7 +62,7 @@ export default function MobileSearchOverlay() {
           type="button"
           onClick={close}
           aria-label="Close search"
-          className="shrink-0 rounded-lg border border-base-700 p-2 text-fg-muted"
+          className="shrink-0 rounded-lg border border-base-700 p-3.5 text-fg-muted focus:border-brand-500 focus:outline-none"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />

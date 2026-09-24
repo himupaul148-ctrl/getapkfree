@@ -1,5 +1,10 @@
 import { createClient, getUser } from "@/lib/supabase/server";
 import { normaliseBlogCategory, normalisePage, type BlogSummary } from "@/lib/blog";
+// Imported directly from lib/blog-article-types.ts, not re-exported via
+// lib/blog.ts: that file has zero dependencies by design (see its own doc
+// comment) specifically so a validator like this one can use it without
+// pulling in lib/blog.ts's next/cache and Supabase client dependencies.
+import { isArticleType, type ArticleType } from "@/lib/blog-article-types";
 
 /**
  * Admin status is read from the database, never from the client. The same
@@ -94,7 +99,7 @@ export async function getAdminStats(): Promise<{
 }
 
 const BLOG_LIST_COLUMNS =
-  "id, slug, title, description, featured_image_url, author, category, related_app_ids, published, view_count, created_at, updated_at";
+  "id, slug, title, description, featured_image_url, author, category, related_app_ids, published, view_count, created_at, updated_at, article_type, target_app_id";
 
 export type AdminBlogOverviewStats = {
   total: number;
@@ -169,6 +174,17 @@ export async function getAdminBlogOverview(): Promise<{
 
 export type AdminBlogStatusFilter = "all" | "published" | "draft";
 export type AdminBlogSort = "newest" | "title" | "views";
+export type AdminBlogArticleTypeFilter = "all" | ArticleType;
+
+/**
+ * Validates the article-type query parameter against the same canonical
+ * ARTICLE_TYPES list every other article-type check in this codebase uses
+ * (see lib/blog-article-types.ts) — an invalid or missing value safely
+ * degrades to "all" (no filter) rather than reaching `.eq()` unvalidated.
+ */
+function normaliseArticleType(raw: string | undefined): AdminBlogArticleTypeFilter {
+  return raw !== undefined && isArticleType(raw) ? raw : "all";
+}
 
 /** No established page size existed before this (the list was unbounded). */
 export const ADMIN_BLOG_PAGE_SIZE = 20;
@@ -197,6 +213,7 @@ export type AdminBlogListParams = {
   category?: string;
   q?: string;
   sort?: string;
+  articleType?: string;
 };
 
 export type AdminBlogListResult = {
@@ -209,6 +226,7 @@ export type AdminBlogListResult = {
   category: string;
   search: string;
   sort: AdminBlogSort;
+  articleType: AdminBlogArticleTypeFilter;
   error: string | null;
 };
 
@@ -235,6 +253,7 @@ export async function getAdminBlogPosts(
   const category = normaliseBlogCategory(params.category);
   const search = (params.q ?? "").trim();
   const sort = normaliseSort(params.sort);
+  const articleType = normaliseArticleType(params.articleType);
   const pageSize = ADMIN_BLOG_PAGE_SIZE;
 
   const supabase = await createClient();
@@ -248,6 +267,8 @@ export async function getAdminBlogPosts(
     else if (status === "draft") query = query.eq("published", false);
 
     if (category) query = query.eq("category", category);
+
+    if (articleType !== "all") query = query.eq("article_type", articleType);
 
     if (search) {
       query = query.ilike("title", `%${escapeIlikePattern(search)}%`);
@@ -303,6 +324,7 @@ export async function getAdminBlogPosts(
     category,
     search,
     sort,
+    articleType,
     error: error?.message ?? null,
   };
 }

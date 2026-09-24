@@ -164,12 +164,37 @@ export default async function AppDetailPage({ params }: Props) {
           { name: app.name, url: absolute(`/app/${app.slug}`) },
         ]}
       />
-      <Link
-        href="/"
-        className="text-sm text-fg-dim transition-colors hover:text-brand-400"
-      >
-        ← Back to catalogue
-      </Link>
+      {/* Visible breadcrumb — mirrors the BreadcrumbJsonLd above exactly
+          (Home / Category / App name), same nav markup as the homepage's own
+          category breadcrumb and the blog article page's breadcrumb, so all
+          three read as one consistent pattern. Supersedes the previous plain
+          "← Back to catalogue" link. */}
+      <nav aria-label="Breadcrumb" className="text-sm text-fg-dim">
+        <ol className="flex flex-wrap items-center gap-1.5">
+          <li>
+            <Link href="/" className="hover:text-brand-400 hover:underline">
+              Home
+            </Link>
+          </li>
+          {app.category && (
+            <>
+              <li aria-hidden="true">/</li>
+              <li>
+                <Link
+                  href={`/?category=${encodeURIComponent(app.category)}`}
+                  className="hover:text-brand-400 hover:underline"
+                >
+                  {app.category}
+                </Link>
+              </li>
+            </>
+          )}
+          <li aria-hidden="true">/</li>
+          <li aria-current="page" className="max-w-[16rem] truncate font-medium text-fg sm:max-w-sm">
+            {app.name}
+          </li>
+        </ol>
+      </nav>
 
       {/* ---- App header ----
           Favourite toggle is two instances, not one repositioned by CSS:

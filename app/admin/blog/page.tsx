@@ -150,6 +150,8 @@ export default async function AdminBlogPage({
             category={listResult.category}
             search={listResult.search}
             sort={listResult.sort}
+            articleType={listResult.articleType}
+            apps={apps}
           />
         )}
       </div>

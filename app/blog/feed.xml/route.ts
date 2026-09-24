@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getPublishedPosts } from "@/lib/blog";
-import { buildBlogRssFeed } from "@/lib/blog-feed";
+import { getRecentPosts } from "@/lib/blog";
+import { buildBlogRssFeed, FEED_LIMIT } from "@/lib/blog-feed";
 
 /*
  * Rendered per request rather than cached as a response — the same fix
@@ -11,11 +11,16 @@ import { buildBlogRssFeed } from "@/lib/blog-feed";
  * "blog", so Supabase isn't hit any more often than /blog already hits it —
  * publishing or editing a post revalidates that tag immediately, exactly as
  * it does for the listing and the sitemap.
+ *
+ * getRecentPosts(FEED_LIMIT) bounds the query at the database to exactly the
+ * rows buildBlogRssFeed's own FEED_LIMIT slice would keep anyway, rather
+ * than fetching and deriving an excerpt/read-time for every published post
+ * via the wider, unbounded listing helper first.
  */
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const posts = await getPublishedPosts();
+  const posts = await getRecentPosts(FEED_LIMIT);
   const xml = buildBlogRssFeed(posts);
 
   return new NextResponse(xml, {

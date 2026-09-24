@@ -14,6 +14,7 @@ import PageViewTracker from "@/components/PageViewTracker";
 import ThemeScript from "@/components/ThemeScript";
 import WebSiteJsonLd from "@/components/WebSiteJsonLd";
 import { clampDescription, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/seo";
+import { adsEnabled } from "@/lib/site-config";
 import "./globals.css";
 
 // SITE_DESCRIPTION is already well under clampDescription's own max (see its
@@ -76,14 +77,22 @@ export default function RootLayout({
             by Google, placed as early in <head> as possible per Google's own
             guidance. Deliberately a plain <script> tag, not next/script: this
             must appear as a literal tag in the server-rendered HTML <head>,
-            which next/script's afterInteractive strategy (used by the
-            existing, env-gated <AdSense /> below) does not guarantee — that
-            component only renders once NEXT_PUBLIC_ADSENSE_CLIENT is set. */}
-        <script
-          async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8955448631957200"
-          crossOrigin="anonymous"
-        />
+            which next/script's afterInteractive strategy (used by <AdSense />
+            below) does not guarantee.
+            Rendered only while adsEnabled is false: once
+            NEXT_PUBLIC_ADSENSE_CLIENT is actually set, <AdSense /> loads the
+            identical adsbygoogle.js src itself, so keeping this one too would
+            load the same script twice on every page. This verification copy
+            exists purely to satisfy Google's site-review requirement before
+            that env var is set; it becomes redundant the moment ads are
+            genuinely turned on. */}
+        {!adsEnabled && (
+          <script
+            async
+            src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8955448631957200"
+            crossOrigin="anonymous"
+          />
+        )}
         <ThemeScript />
         <OrganizationJsonLd />
         <WebSiteJsonLd />

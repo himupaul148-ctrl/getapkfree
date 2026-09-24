@@ -227,10 +227,21 @@ export default function BlogEditor({
     } catch (caught) {
       const message =
         caught instanceof Error ? caught.message : "Could not save the post.";
+      // The client-side validate()/onArticleTypeChange above already keep the
+      // form itself from submitting an App Related post with no target app in
+      // the normal flow — this is the database's own
+      // blog_posts_article_type_target_app_check constraint as a second,
+      // authoritative line of defense (the DB, unlike this form, cannot be
+      // bypassed by a stale form state or a direct API call). It should be
+      // effectively unreachable through this UI, but if it is ever hit, an
+      // admin should see the same plain-English message validate() would have
+      // shown, not a raw Postgres constraint name.
       setError(
         message.includes("blog_posts_slug_key")
           ? `The slug “${effectiveSlug}” is already taken.`
-          : message,
+          : message.includes("blog_posts_article_type_target_app_check")
+            ? "Choose which app this article is about."
+            : message,
       );
     } finally {
       setSaving(false);

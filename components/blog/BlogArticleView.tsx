@@ -10,7 +10,13 @@ import BlogViewCounter from "@/components/blog/BlogViewCounter";
 import RelatedApps from "@/components/blog/RelatedApps";
 import ReviewOtherArticleLayout from "@/components/blog/ReviewOtherArticleLayout";
 import ShareButtons from "@/components/blog/ShareButtons";
-import { selectArticleLayout, type BlogPost, type BlogSummary, type TargetAppLink } from "@/lib/blog";
+import {
+  CATEGORY_LABELS,
+  selectArticleLayout,
+  type BlogPost,
+  type BlogSummary,
+  type TargetAppLink,
+} from "@/lib/blog";
 import { extractFaqPairs } from "@/lib/faq";
 import { extractListicleItems } from "@/lib/listicle";
 import { isOptimisable } from "@/lib/images";
@@ -95,6 +101,10 @@ export default function BlogArticleView({
             items={[
               { name: "Home", url: absolute("/") },
               { name: "Blog", url: absolute("/blog") },
+              {
+                name: CATEGORY_LABELS[post.category as keyof typeof CATEGORY_LABELS] ?? post.category,
+                url: absolute(`/blog?category=${encodeURIComponent(post.category)}`),
+              },
               { name: post.title, url: absolute(`/blog/${post.slug}`) },
             ]}
           />
@@ -108,12 +118,40 @@ export default function BlogArticleView({
         </>
       )}
 
-      <Link
-        href="/blog"
-        className="text-sm text-fg-dim transition-colors hover:text-brand-400"
-      >
-        ← Back to the blog
-      </Link>
+      {/* Visible breadcrumb — mirrors the BreadcrumbJsonLd above exactly
+          (Home / Blog / Category / Article title), and the same nav markup
+          app/page.tsx's own category breadcrumb already uses, so the two
+          read as one consistent pattern rather than two different
+          conventions. Supersedes the previous plain single-link-back
+          navigation entirely, rather than sitting alongside it. */}
+      <nav aria-label="Breadcrumb" className="text-sm text-fg-dim">
+        <ol className="flex flex-wrap items-center gap-1.5">
+          <li>
+            <Link href="/" className="hover:text-brand-400 hover:underline">
+              Home
+            </Link>
+          </li>
+          <li aria-hidden="true">/</li>
+          <li>
+            <Link href="/blog" className="hover:text-brand-400 hover:underline">
+              Blog
+            </Link>
+          </li>
+          <li aria-hidden="true">/</li>
+          <li>
+            <Link
+              href={`/blog?category=${encodeURIComponent(post.category)}`}
+              className="hover:text-brand-400 hover:underline"
+            >
+              {CATEGORY_LABELS[post.category as keyof typeof CATEGORY_LABELS] ?? post.category}
+            </Link>
+          </li>
+          <li aria-hidden="true">/</li>
+          <li aria-current="page" className="max-w-[16rem] truncate font-medium text-fg sm:max-w-sm">
+            {post.title}
+          </li>
+        </ol>
+      </nav>
 
       {post.featured_image_url && (
         <div className="relative mt-6 aspect-video w-full overflow-hidden rounded-2xl border border-base-800 bg-base-850">

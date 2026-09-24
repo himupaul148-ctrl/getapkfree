@@ -2,12 +2,35 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { Modal } from "@/components/admin/Modal";
 import { formatDate, formatCount } from "@/lib/format";
 import { BLOG_CATEGORIES, CATEGORY_LABELS, type BlogSummary } from "@/lib/blog";
+import { ARTICLE_TYPES, ARTICLE_TYPE_LABELS } from "@/lib/blog-article-types";
 import { buildPreviewHref } from "@/lib/blog-preview";
-import type { AdminBlogSort, AdminBlogStatusFilter } from "@/lib/admin";
+import type { AdminBlogArticleTypeFilter, AdminBlogSort, AdminBlogStatusFilter } from "@/lib/admin";
+import type { PickerApp } from "@/components/admin/RelatedAppPicker";
+
+/**
+ * Target App column rules (task spec): General never shows a target app
+ * (target_app_id is a General/App Related/Review Other-specific concept, and
+ * the article-type invariant keeps it null for General rows); App Related
+ * always shows one; Review/Other shows one only when it actually has a
+ * target_app_id. Deliberately reads only `target_app_id` — never
+ * `related_app_ids`, a different, multi-app relationship this column has no
+ * business showing. A target_app_id that doesn't resolve in `appNameById`
+ * (a deleted app, or a target app the admin's own `apps` fetch didn't
+ * include) fails safe to "Unknown app" rather than crashing the row.
+ */
+function targetAppLabel(
+  post: Pick<BlogSummary, "article_type" | "target_app_id">,
+  appNameById: Map<string, string>,
+): string {
+  if (post.article_type === "general") return "—";
+  if (!post.target_app_id) return "—";
+  return appNameById.get(post.target_app_id) ?? "Unknown app";
+}
 
 export default function BlogPostsTable({
   posts,
@@ -19,6 +42,8 @@ export default function BlogPostsTable({
   category,
   search,
   sort,
+  articleType,
+  apps,
 }: {
   posts: BlogSummary[];
   total: number;
@@ -29,9 +54,16 @@ export default function BlogPostsTable({
   category: string;
   search: string;
   sort: AdminBlogSort;
+  articleType: AdminBlogArticleTypeFilter;
+  /** Already fetched once in app/admin/blog/page.tsx for BlogEditor's own app
+      picker — reused here purely as an in-memory id→name lookup for the
+      Target App column, so this table never issues a second query (let
+      alone one per row) just to resolve target_app_id. */
+  apps: PickerApp[];
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const appNameById = useMemo(() => new Map(apps.map((a) => [a.id, a.name])), [apps]);
 
   const [query, setQuery] = useState(search);
   const [selected, setSelected] = useState<string[]>([]);
@@ -66,6 +98,7 @@ export default function BlogPostsTable({
       status: AdminBlogStatusFilter;
       category: string;
       sort: AdminBlogSort;
+      articleType: AdminBlogArticleTypeFilter;
       page: number;
     }>,
     mode: "push" | "replace",
@@ -77,6 +110,7 @@ export default function BlogPostsTable({
     const nextStatus = next.status ?? status;
     const nextCategory = next.category ?? category;
     const nextSort = next.sort ?? sort;
+    const nextArticleType = next.articleType ?? articleType;
     const nextPage = next.page ?? 1;
 
     if (nextQuery.trim()) params.set("q", nextQuery.trim());
@@ -90,6 +124,9 @@ export default function BlogPostsTable({
 
     if (nextSort !== "newest") params.set("sort", nextSort);
     else params.delete("sort");
+
+    if (nextArticleType !== "all") params.set("articleType", nextArticleType);
+    else params.delete("articleType");
 
     if (nextPage > 1) params.set("page", String(nextPage));
     else params.delete("page");
@@ -190,6 +227,21 @@ export default function BlogPostsTable({
           ))}
         </select>
         <select
+          value={articleType}
+          onChange={(e) =>
+            go({ articleType: e.target.value as AdminBlogArticleTypeFilter }, "push")
+          }
+          aria-label="Filter by article type"
+          className="rounded-xl border border-base-700 bg-base-950 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500"
+        >
+          <option value="all">All Types</option>
+          {ARTICLE_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {ARTICLE_TYPE_LABELS[t]}
+            </option>
+          ))}
+        </select>
+        <select
           value={sort}
           onChange={(e) => go({ sort: e.target.value as AdminBlogSort }, "push")}
           aria-label="Sort"
@@ -261,6 +313,8 @@ export default function BlogPostsTable({
                   />
                 </th>
                 <th className="px-4 py-3 font-medium">Title</th>
+                <th className="px-4 py-3 font-medium">Article Type</th>
+                <th className="px-4 py-3 font-medium">Target App</th>
                 <th className="px-4 py-3 font-medium">Category</th>
                 <th className="px-4 py-3 font-medium">Author</th>
                 <th className="px-4 py-3 font-medium">Status</th>
@@ -299,6 +353,14 @@ export default function BlogPostsTable({
                     <p className="font-mono text-xs text-fg-dim">
                       /blog/{post.slug}
                     </p>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="inline-block rounded-full border border-base-700 px-2 py-0.5 text-xs whitespace-nowrap text-fg-muted">
+                      {ARTICLE_TYPE_LABELS[post.article_type ?? "general"]}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-fg-muted">
+                    {targetAppLabel(post, appNameById)}
                   </td>
                   <td className="px-4 py-3 text-fg-muted">
                     {CATEGORY_LABELS[
@@ -399,44 +461,33 @@ export default function BlogPostsTable({
       )}
 
       {confirmDelete && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
-          onClick={() => setConfirmDelete(null)}
+        <Modal
+          title={`Delete ${confirmDelete.length} post${confirmDelete.length === 1 ? "" : "s"}?`}
+          onClose={() => setConfirmDelete(null)}
         >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md rounded-2xl border border-base-700 bg-base-900 p-6"
-          >
-            <h3 className="text-lg font-bold">
-              Delete {confirmDelete.length} post
-              {confirmDelete.length === 1 ? "" : "s"}?
-            </h3>
-            <p className="mt-2 text-sm leading-relaxed text-fg-muted">
-              This cannot be undone. Any links to{" "}
-              {confirmDelete.length === 1 ? "this post" : "these posts"} will
-              start returning 404.
-            </p>
-            <div className="mt-6 flex gap-3">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void run(confirmDelete, "delete")}
-                className="rounded-xl bg-danger-500 px-5 py-2.5 text-sm font-semibold text-base-950 disabled:opacity-40"
-              >
-                {busy ? "Deleting…" : "Delete"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(null)}
-                className="rounded-xl border border-base-700 px-5 py-2.5 text-sm text-fg-muted hover:text-fg"
-              >
-                Cancel
-              </button>
-            </div>
+          <p className="text-sm leading-relaxed text-fg-muted">
+            This cannot be undone. Any links to{" "}
+            {confirmDelete.length === 1 ? "this post" : "these posts"} will
+            start returning 404.
+          </p>
+          <div className="mt-6 flex gap-3">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void run(confirmDelete, "delete")}
+              className="rounded-xl bg-danger-500 px-5 py-2.5 text-sm font-semibold text-base-950 disabled:opacity-40"
+            >
+              {busy ? "Deleting…" : "Delete"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(null)}
+              className="rounded-xl border border-base-700 px-5 py-2.5 text-sm text-fg-muted hover:text-fg focus:border-brand-500 focus:outline-none"
+            >
+              Cancel
+            </button>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

@@ -89,10 +89,10 @@ group("the list error banner is scoped to the list query, matching the page's ex
 });
 
 group("BlogPostsTable receives the full server-computed pagination/filter state as props", () => {
-  test("passes posts/total/page/pageSize/totalPages/status/category/search/sort — not just `posts`", () => {
+  test("passes posts/total/page/pageSize/totalPages/status/category/search/sort/articleType/apps — not just `posts`", () => {
     assert.match(
       src,
-      /<BlogPostsTable\s*\n\s*posts=\{listResult\.posts\}\s*\n\s*total=\{listResult\.total\}\s*\n\s*page=\{listResult\.page\}\s*\n\s*pageSize=\{listResult\.pageSize\}\s*\n\s*totalPages=\{listResult\.totalPages\}\s*\n\s*status=\{listResult\.status\}\s*\n\s*category=\{listResult\.category\}\s*\n\s*search=\{listResult\.search\}\s*\n\s*sort=\{listResult\.sort\}\s*\n\s*\/>/,
+      /<BlogPostsTable\s*\n\s*posts=\{listResult\.posts\}\s*\n\s*total=\{listResult\.total\}\s*\n\s*page=\{listResult\.page\}\s*\n\s*pageSize=\{listResult\.pageSize\}\s*\n\s*totalPages=\{listResult\.totalPages\}\s*\n\s*status=\{listResult\.status\}\s*\n\s*category=\{listResult\.category\}\s*\n\s*search=\{listResult\.search\}\s*\n\s*sort=\{listResult\.sort\}\s*\n\s*articleType=\{listResult\.articleType\}\s*\n\s*apps=\{apps\}\s*\n\s*\/>/,
     );
   });
 
