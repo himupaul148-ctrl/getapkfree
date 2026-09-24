@@ -37,6 +37,9 @@ export function CategoryBadge({
 }
 
 export default function BlogCard({ post }: { post: BlogSummary }) {
+  const isStoredBlogImage =
+    post.featured_image_url?.includes("/storage/v1/object/public/blog-images/") ?? false;
+
   return (
     <article className="group overflow-hidden rounded-2xl border border-base-800 bg-base-900 transition-colors hover:border-brand-500/50">
       <Link href={`/blog/${post.slug}`} className="block">
@@ -48,7 +51,9 @@ export default function BlogCard({ post }: { post: BlogSummary }) {
               fill
               sizes="(max-width: 768px) 100vw, 380px"
               loading="lazy"
-              unoptimized={!isOptimisable(post.featured_image_url)}
+              unoptimized={
+                isStoredBlogImage || !isOptimisable(post.featured_image_url)
+              }
               className="object-cover transition-transform group-hover:scale-[1.02]"
             />
           </div>
