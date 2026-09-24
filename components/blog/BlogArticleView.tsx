@@ -69,6 +69,13 @@ export default function BlogArticleView({
   const html = renderMarkdown(post.content);
   const minutes = readingTime(post.content);
   const url = absolute(`/blog/${post.slug}`);
+  // Featured images uploaded through the admin pipeline are already resized to
+  // 1200×630 WebP in the public Supabase blog-images bucket. Serve those
+  // files directly instead of sending them through /_next/image. This avoids
+  // a deployment-time remotePatterns mismatch while preserving the existing
+  // Next image optimizer for other allowed featured-image hosts.
+  const isStoredBlogImage =
+    post.featured_image_url?.includes("/storage/v1/object/public/blog-images/") ?? false;
   // Three distinct public templates (General/App Related/Review-Other) share
   // this one shell (JSON-LD, featured image, the two-column grid, the
   // RelatedApps sidebar, share/prev-next) and differ only in what renders
@@ -161,7 +168,9 @@ export default function BlogArticleView({
             fill
             sizes="(max-width: 1024px) 100vw, 1152px"
             priority
-            unoptimized={!isOptimisable(post.featured_image_url)}
+            unoptimized={
+              isStoredBlogImage || !isOptimisable(post.featured_image_url)
+            }
             className="object-cover"
           />
         </div>
