@@ -245,17 +245,17 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
         <>
           {/* Table on desktop, stacked cards on mobile. */}
           <div className="hidden overflow-x-auto rounded-2xl border border-base-800 md:block">
-            <table className="w-full text-left text-sm">
+            <table className="min-w-[1000px] w-full table-fixed text-left text-sm">
               <thead className="bg-base-850 text-xs text-fg-dim">
                 <tr>
                   <Th className="w-10">#</Th>
-                  <Th>App</Th>
-                  <Th>Source</Th>
-                  <Th>Category</Th>
-                  <Th>Versions</Th>
-                  <Th>Downloads</Th>
-                  <Th>Created</Th>
-                  <Th className="text-right">Actions</Th>
+                  <Th className="w-[28%]">App</Th>
+                  <Th className="w-24">Source</Th>
+                  <Th className="w-24">Category</Th>
+                  <Th className="w-24">Versions</Th>
+                  <Th className="w-24">Downloads</Th>
+                  <Th className="w-28">Created</Th>
+                  <Th className="w-80 text-right">Actions</Th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-base-800 bg-base-900">
@@ -296,7 +296,8 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
                       <td className="px-4 py-3 text-fg-muted">
                         {formatDate(app.createdAt)}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 align-top">
+                        <div className="min-w-0">
                         <Actions
                           app={app}
                           busy={busyId === app.id}
@@ -304,6 +305,7 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
                           onDelete={() => setConfirmDelete(app)}
                           onImported={() => router.refresh()}
                         />
+                        </div>
                       </td>
                     </tr>
                     <tr>
