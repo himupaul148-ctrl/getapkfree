@@ -37,7 +37,12 @@ export async function GET() {
 
   const date = new Date().toISOString().slice(0, 10);
 
-  return new NextResponse(workbook, {
+  // NextResponse expects a DOM-compatible BodyInit. Convert the Node Buffer
+  // into a standalone ArrayBuffer to satisfy Vercel/TypeScript strict typing.
+  const body = new ArrayBuffer(workbook.byteLength);
+  new Uint8Array(body).set(workbook);
+
+  return new NextResponse(body, {
     status: 200,
     headers: {
       "Content-Type":
