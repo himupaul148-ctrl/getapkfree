@@ -234,6 +234,13 @@ export default function AppsManager({ apps }: { apps: ManagedApp[] }) {
             <span className="text-xs text-fg-dim">
               Showing {rows.length} of {apps.length}
             </span>
+            <a
+              href="/api/admin/apps/export"
+              className="rounded-xl border border-brand-500/40 bg-brand-500/10 px-3.5 py-2 text-sm font-medium text-brand-300 transition-colors hover:bg-brand-500/20 hover:text-brand-200"
+              title={`Export all ${apps.length} app names to Excel`}
+            >
+              Export Excel
+            </a>
           </div>
       </div>
 
