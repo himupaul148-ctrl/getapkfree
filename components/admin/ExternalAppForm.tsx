@@ -101,6 +101,38 @@ export default function ExternalAppForm() {
     }
   }
 
+function formatSupabaseError(caught: unknown, fallback: string): string {
+  if (!caught || typeof caught !== "object") return fallback;
+
+  const error = caught as {
+    message?: unknown;
+    code?: unknown;
+    details?: unknown;
+    hint?: unknown;
+  };
+
+  const message =
+    typeof error.message === "string" && error.message.trim()
+      ? error.message.trim()
+      : fallback;
+  const code =
+    typeof error.code === "string" && error.code.trim()
+      ? error.code.trim()
+      : null;
+  const details =
+    typeof error.details === "string" && error.details.trim()
+      ? error.details.trim()
+      : null;
+  const hint =
+    typeof error.hint === "string" && error.hint.trim()
+      ? error.hint.trim()
+      : null;
+
+  return [message, code ? `(code ${code})` : null, details, hint]
+    .filter(Boolean)
+    .join(" — ");
+}
+
   async function onSave(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
@@ -161,6 +193,24 @@ export default function ExternalAppForm() {
     const supabase = createClient();
 
     try {
+      // Check the package identity before inserting. package_name is unique,
+      // so an existing draft or published listing must not collapse into the
+      // generic "Could not save the app" error.
+      const { data: existingPackage, error: packageLookupError } = await supabase
+        .from("apps")
+        .select("id, slug")
+        .eq("package_name", pkg)
+        .maybeSingle<{ id: string; slug: string }>();
+
+      if (packageLookupError) throw packageLookupError;
+
+      if (existingPackage) {
+        setError(
+          `${pkg} is already in the catalogue. Open the existing listing in Manage Apps instead of creating a duplicate.`,
+        );
+        return;
+      }
+
       const base = slugify(name) || slugify(pkg) || "app";
       const { data: clash } = await supabase
         .from("apps")
@@ -237,10 +287,18 @@ export default function ExternalAppForm() {
       setFetched(null);
       router.refresh();
     } catch (caught) {
-      const message =
-        caught instanceof Error ? caught.message : "Could not save the app.";
+      const message = formatSupabaseError(caught, "Could not save the app.");
+      const code =
+        caught && typeof caught === "object" && "code" in caught
+          ? String((caught as { code?: unknown }).code ?? "")
+          : "";
+      const rawMessage =
+        caught && typeof caught === "object" && "message" in caught
+          ? String((caught as { message?: unknown }).message ?? "")
+          : "";
+
       setError(
-        message.includes("apps_package_name_key")
+        code === "23505" || rawMessage.includes("apps_package_name_key")
           ? `${pkg} is already in the catalogue.`
           : message,
       );
