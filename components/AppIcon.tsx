@@ -57,7 +57,7 @@ export default function AppIcon({
       priority={priority}
       // An admin can paste an icon from any host; the optimiser only accepts
       // the allowlist, so anything else renders straight through.
-      unoptimized={!isOptimisable(src)}
+      unoptimized={src.includes("/storage/v1/object/public/") || !isOptimisable(src)}
       onError={() => setFailed(true)}
       className="shrink-0 rounded-xl bg-base-800 object-cover"
     />
