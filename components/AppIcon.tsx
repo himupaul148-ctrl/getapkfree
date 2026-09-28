@@ -47,6 +47,28 @@ export default function AppIcon({
     );
   }
 
+  const useDirectImage =
+    src.includes("/storage/v1/object/public/") ||
+    src.includes("f-droid.org") ||
+    !isOptimisable(src);
+
+  if (useDirectImage) {
+    // External catalogue icons are served directly. This avoids the
+    // Next.js optimizer entirely, which can fail on third-party image hosts.
+    // eslint-disable-next-line @next/next/no-img-element
+    return (
+      <img
+        src={src}
+        alt={name}
+        width={size}
+        height={size}
+        loading={priority ? "eager" : "lazy"}
+        onError={() => setFailed(true)}
+        className="shrink-0 rounded-xl bg-base-800 object-cover"
+      />
+    );
+  }
+
   return (
     <Image
       src={src}
@@ -55,9 +77,6 @@ export default function AppIcon({
       height={size}
       loading={priority ? undefined : "lazy"}
       priority={priority}
-      // An admin can paste an icon from any host; the optimiser only accepts
-      // the allowlist, so anything else renders straight through.
-      unoptimized={src.includes("/storage/v1/object/public/") || src.includes("f-droid.org") || !isOptimisable(src)}
       onError={() => setFailed(true)}
       className="shrink-0 rounded-xl bg-base-800 object-cover"
     />
