@@ -68,7 +68,7 @@ export default function ScreenshotGallery({
                 sizes="(max-width: 640px) 40vw, 22vw"
                 priority={index === 0}
                 loading={index < 4 ? "eager" : "lazy"}
-                unoptimized={!isOptimisable(src)}
+                unoptimized={src.includes("/storage/v1/object/public/") || !isOptimisable(src)}
                 className="aspect-[9/16] w-full object-cover transition-transform group-hover:scale-[1.03]"
               />
             </button>
