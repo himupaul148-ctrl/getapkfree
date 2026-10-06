@@ -225,8 +225,39 @@ export default function BlogEditor({
         setRelated([]);
       }
     } catch (caught) {
+      // Supabase/PostgREST errors are plain objects in some client versions,
+      // not necessarily Error instances. Preserve their useful diagnostics
+      // instead of collapsing every database failure into "Could not save".
+      const failure =
+        caught && typeof caught === "object"
+          ? (caught as {
+              message?: unknown;
+              code?: unknown;
+              details?: unknown;
+              hint?: unknown;
+            })
+          : null;
       const message =
-        caught instanceof Error ? caught.message : "Could not save the post.";
+        caught instanceof Error
+          ? caught.message
+          : typeof failure?.message === "string" && failure.message.trim()
+            ? failure.message.trim()
+            : "Could not save the post.";
+      const code =
+        typeof failure?.code === "string" ? failure.code : "";
+      const details =
+        typeof failure?.details === "string" ? failure.details.trim() : "";
+      const hint =
+        typeof failure?.hint === "string" ? failure.hint.trim() : "";
+      const diagnostic = [message, details, hint]
+        .filter(Boolean)
+        .join(" — ");
+      console.error("BlogEditor save failed", {
+        code: code || undefined,
+        message,
+        details: details || undefined,
+        hint: hint || undefined,
+      });
       // The client-side validate()/onArticleTypeChange above already keep the
       // form itself from submitting an App Related post with no target app in
       // the normal flow — this is the database's own
@@ -237,11 +268,11 @@ export default function BlogEditor({
       // admin should see the same plain-English message validate() would have
       // shown, not a raw Postgres constraint name.
       setError(
-        message.includes("blog_posts_slug_key")
+        code === "23505" || message.includes("blog_posts_slug_key")
           ? `The slug “${effectiveSlug}” is already taken.`
           : message.includes("blog_posts_article_type_target_app_check")
             ? "Choose which app this article is about."
-            : message,
+            : diagnostic,
       );
     } finally {
       setSaving(false);
