@@ -464,6 +464,45 @@ export default function BlogEditor({
         </div>
       </div>
 
+      {/* Quick actions between post metadata/related apps and the long content editor
+          let authors publish or save without scrolling past the full article. */}
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-base-800 bg-base-900 p-4">
+        <button
+          type="submit"
+          disabled={saving || imageBusy}
+          className="rounded-xl bg-brand-500 px-6 py-3 text-sm font-bold text-base-950 transition-colors hover:bg-brand-400 disabled:opacity-40"
+        >
+          {saving ? "Saving…" : imageBusy ? "Image uploading…" : editing ? "Update post" : "Publish"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => void save(false)}
+          disabled={saving || imageBusy}
+          className="rounded-xl border border-base-700 px-6 py-3 text-sm text-fg-muted transition-colors hover:text-fg disabled:opacity-40"
+        >
+          Save as draft
+        </button>
+
+        {editing ? (
+          <Link
+            href={buildPreviewHref(post!.id)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-xl border border-base-700 px-6 py-3 text-sm text-fg-muted transition-colors hover:text-fg"
+          >
+            Preview
+          </Link>
+        ) : (
+          <span
+            title="This post has no saved version yet — save it as a draft first, then use the Preview link that appears above."
+            className="text-xs text-fg-dim"
+          >
+            Preview available after the first save
+          </span>
+        )}
+      </div>
+
       <div>
         <p className="mb-2 text-sm font-medium">Content</p>
         <MarkdownEditor value={content} onChange={setContent} />
