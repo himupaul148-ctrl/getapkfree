@@ -6,6 +6,7 @@ import AppJsonLd from "@/components/AppJsonLd";
 import AppIcon from "@/components/AppIcon";
 import BreadcrumbJsonLd from "@/components/BreadcrumbJsonLd";
 import FavoriteToggle from "@/components/FavoriteToggle";
+import AdminAppEditButton from "@/components/admin/AdminAppEditButton";
 import DownloadButton from "@/components/DownloadButton";
 import { CategoryBadge } from "@/components/blog/BlogCard";
 import { downloadSourceLabel, hostOf, safetyMethodologyPath } from "@/lib/sources";
@@ -205,7 +206,26 @@ export default async function AppDetailPage({ params }: Props) {
           for the labelled "button" variant to sit naturally at the end of
           the row instead. */}
       <header className="relative mt-5 flex flex-col gap-4 sm:mt-6 sm:flex-row sm:items-start sm:gap-5">
-        <div className="sm:hidden">
+        <div className="flex items-center gap-2 sm:hidden">
+          <AdminAppEditButton
+            app={{
+              id: app.id,
+              name: app.name,
+              slug: app.slug,
+              category: app.category,
+              description: app.description,
+              developer: app.developer_name,
+              iconUrl: app.icon_url,
+              screenshots: app.screenshots ?? [],
+              rating: app.rating,
+              ratingCount: app.rating_count,
+              manualFields: app.manual_fields ?? [],
+              sourceType: app.source_type,
+              externalUrl: app.external_url,
+              latestVersionId: latest?.id ?? null,
+              latestVersionName: latest?.version_name ?? null,
+            }}
+          />
           <FavoriteToggle appId={app.id} appName={app.name} />
         </div>
 
@@ -243,7 +263,26 @@ export default async function AppDetailPage({ params }: Props) {
           </div>
         </div>
 
-        <div className="hidden sm:block">
+        <div className="hidden items-center gap-2 sm:flex">
+          <AdminAppEditButton
+            app={{
+              id: app.id,
+              name: app.name,
+              slug: app.slug,
+              category: app.category,
+              description: app.description,
+              developer: app.developer_name,
+              iconUrl: app.icon_url,
+              screenshots: app.screenshots ?? [],
+              rating: app.rating,
+              ratingCount: app.rating_count,
+              manualFields: app.manual_fields ?? [],
+              sourceType: app.source_type,
+              externalUrl: app.external_url,
+              latestVersionId: latest?.id ?? null,
+              latestVersionName: latest?.version_name ?? null,
+            }}
+          />
           <FavoriteToggle appId={app.id} appName={app.name} variant="button" />
         </div>
       </header>
