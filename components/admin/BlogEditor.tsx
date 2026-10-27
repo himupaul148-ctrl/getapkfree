@@ -287,7 +287,7 @@ export default function BlogEditor({
         e.preventDefault();
         void save(true);
       }}
-      className="space-y-6"
+      className="min-w-0 max-w-full space-y-6"
     >
       {error && (
         <p className="rounded-xl border border-danger-500/40 bg-danger-500/10 p-4 text-sm text-danger-300">
@@ -320,8 +320,8 @@ export default function BlogEditor({
         </p>
       )}
 
-      <div className="grid gap-5 rounded-2xl border border-base-800 bg-base-900 p-5 sm:grid-cols-2">
-        <div className="sm:col-span-2">
+      <div className="grid min-w-0 max-w-full grid-cols-1 gap-5 rounded-2xl border border-base-800 bg-base-900 p-4 sm:grid-cols-2 sm:p-5">
+        <div className="min-w-0 sm:col-span-2">
           <label htmlFor="post-title" className="block text-sm font-medium">
             Title <span className="text-danger-300">*</span>
           </label>
@@ -381,7 +381,7 @@ export default function BlogEditor({
           </p>
         </div>
 
-        <div>
+        <div className="min-w-0">
           <label htmlFor="post-category" className="block text-sm font-medium">
             Category <span className="text-danger-300">*</span>
           </label>
@@ -399,7 +399,7 @@ export default function BlogEditor({
           </select>
         </div>
 
-        <div>
+        <div className="min-w-0">
           <label htmlFor="post-article-type" className="block text-sm font-medium">
             Article Type
           </label>
@@ -417,7 +417,7 @@ export default function BlogEditor({
           </select>
         </div>
 
-        <div>
+        <div className="min-w-0">
           <label htmlFor="post-author" className="block text-sm font-medium">
             Author
           </label>
