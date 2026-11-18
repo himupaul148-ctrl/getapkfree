@@ -34,6 +34,12 @@ export const metadata: Metadata = {
   },
   description: DEFAULT_DESCRIPTION,
   applicationName: SITE_NAME,
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.svg", type: "image/svg+xml", sizes: "any" },
+    ],
+  },
   keywords: [
     "APK download",
     "open source Android apps",
