@@ -36,8 +36,8 @@ export const metadata: Metadata = {
   applicationName: SITE_NAME,
   icons: {
     icon: [
+      { url: "/favicon.png", type: "image/png", sizes: "96x96" },
       { url: "/favicon.ico", sizes: "any" },
-      { url: "/icon.svg", type: "image/svg+xml", sizes: "any" },
     ],
   },
   keywords: [
