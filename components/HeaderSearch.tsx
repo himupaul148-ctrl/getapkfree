@@ -259,10 +259,14 @@ export default function HeaderSearch({
           ) : (
             activeResults.map((app, index) => (
               <li key={app.id} id={`${idPrefix}-search-option-${index}`} role="option" aria-selected={index === highlighted}>
-                <button
-                  type="button"
-                  onMouseEnter={() => setHighlighted(index)}
-                  onClick={() => goToApp(app.slug)}
+                <Link
+                  href={`/app/${app.slug}`}
+                  prefetch
+                  onMouseEnter={() => {
+                    setHighlighted(index);
+                    router.prefetch(`/app/${app.slug}`);
+                  }}
+                  onClick={() => setOpen(false)}
                   className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm ${
                     index === highlighted ? "bg-base-800" : ""
                   }`}
@@ -270,7 +274,7 @@ export default function HeaderSearch({
                   <AppIcon src={app.iconUrl} name={app.name} size={28} />
                   <span className="min-w-0 flex-1 truncate text-fg">{app.name}</span>
                   {app.category && <span className="shrink-0 text-xs text-fg-dim">{app.category}</span>}
-                </button>
+                </Link>
               </li>
             ))
           )}
