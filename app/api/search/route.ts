@@ -29,8 +29,39 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const results = await searchApps(validation.value, supabase);
-    return NextResponse.json({ query: validation.value, results });
+    // Search the original phrase plus a canonical alias for common app-name
+    // variants. Queries run concurrently and are deduplicated; ranking and
+    // published-build filtering remain in the database function.
+    const normalized = validation.value.toLowerCase().replace(/[\\s._-]+/g, "");
+    const aliases: Record<string, string> = {
+      "whatsap": "whatsapp",
+      "whatsapp": "whatsapp",
+      "whats app": "whatsapp",
+      "insta": "instagram",
+      "instgram": "instagram",
+      "instagramm": "instagram",
+      "chat gpt": "chatgpt",
+      "cap cut": "capcut",
+      "yt": "youtube",
+      "you tube": "youtube",
+      "tele gram": "telegram",
+      "spot ify": "spotify",
+      "face book": "facebook",
+      "tik tok": "tiktok",
+      "snap chat": "snapchat",
+    };
+    const alias = aliases[validation.value.toLowerCase()] ?? aliases[normalized];
+    const queries = [...new Set([validation.value, alias].filter((q): q is string => Boolean(q)))];
+    const batches = await Promise.all(queries.map((q) => searchApps(q, supabase)));
+    const seen = new Set<string>();
+    const results = batches.flat().filter((app) => {
+      if (seen.has(app.id)) return false;
+      seen.add(app.id);
+      return true;
+    }).slice(0, 6);
+    return NextResponse.json({ query: validation.value, results }, {
+      headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120" },
+    });
   } catch (caught) {
     // Never surface the underlying Supabase/Postgres error text — it could
     // name a column, constraint, or internal detail. Logged server-side
